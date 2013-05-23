@@ -26,8 +26,10 @@ September 2009.
 #include <math.h>
 #include <string.h>
 #include <sys/time.h>
-#include "../../cudd-2.4.2/cudd/cudd.h"
-#include "../../cudd-2.4.2/dddmp/dddmp.h"
+//#include "../../cudd-2.5.0/cudd/cudd.h"
+//#include "../../cudd-2.5.0/dddmp/dddmp.h"
+#include "cudd.h"
+#include "dddmp.h"
 
 typedef struct t_sv{
 	int n;

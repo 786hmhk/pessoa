@@ -4,18 +4,21 @@
 # Version 1.0, June, 2009	                                     	     #
 #----------------------------------------------------------------------------#
 
+#--------------------------- CONFIGURE --------------------------------------#
+MATLAB	       = # Root directory of your Matlab installation.
+SYSTEMEX       = # Valid options: glnx86 glnxa64 mexmaci glnxa64 mexmaci.
+LDFLAGS_LIB    = # Valid options: -arch i386 -arch x86_64 #-mtune=native -fPIC
+#----------------------------------------------------------------------------#
+
+
 MEXSUFFIX  = mex
 DIR        = ../..
-MATLAB	   = /opt/netapps/MathWorks/amd64/matlab/mdw/R2010a/
- #/Applications/MATLAB74/
-CUDDDIR	   = ./cudd-2.4.2/
-SYSTEMEX   = glnxa64 #mexmaci #glnxa64 #mexmaci
-LDFLAGS_LIB    = -arch x86_64 #-mtune=native -fPIC -arch i386 #-arch x86_64
+CUDDDIR	   = ./cudd-2.5.0/
 MAKEARG    = 'MATLABHOME=$(MATLAB)' 'CUDDDIR=../../$(CUDDDIR)' 'SYSTEMEX=$(SYSTEMEX)' 'LDFLAGS_LIB=$(LDFLAGS_LIB)'
 
 .PHONY: all clean utils cudd
 
-all: cudd pessoa.o pessoa_abstract pessoa_design pessoa_controller utils
+all:    cudd pessoa.o pessoa_abstract pessoa_design pessoa_controller utils
 
 clean:
 	$(MAKE) distclean -C $(CUDDDIR)
