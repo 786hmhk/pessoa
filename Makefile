@@ -6,7 +6,7 @@
 
 #--------------------------- CONFIGURE --------------------------------------#
 MATLAB	       = # Root directory of your Matlab installation.
-SYSTEMEX       = # Valid options: glnx86 glnxa64 mexmaci glnxa64 mexmaci.
+SYSTEMEX       = # Valid options: glnx86 glnxa64 maci64.
 LDFLAGS_LIB    = # Valid options: -arch i386 -arch x86_64 #-mtune=native -fPIC
 #----------------------------------------------------------------------------#
 

@@ -49,12 +49,19 @@ RANLIB	= ranlib
 #ICFLAGS	=
 # These two are typical settings for optimized code with gcc.
 #ICFLAGS	= -g -O3 -Wall
-ICFLAGS	= -g -O3
+ICFLAGS	= -g -O6 -fPIC
 
 # Use XCFLAGS to specify machine-dependent compilation flags.
 # For some platforms no special flags are needed.
 #XCFLAGS	= -DHAVE_IEEE_754 -DBSD
 #
+#==========================
+# MAC OS X
+#
+# Gcc on i686.
+#XCFLAGS        = -m32 -DHAVE_IEEE_754 -fno-common 
+# Gcc on x86_64.
+#XCFLAGS        =  -fPIC -DPIC -DHAVE_IEEE_754 -DSIZEOF_VOID_P=8 -DSIZEOF_LONG=8 -DHAVE_IEEE_754 -fno-common 
 #==========================
 #  Linux
 #

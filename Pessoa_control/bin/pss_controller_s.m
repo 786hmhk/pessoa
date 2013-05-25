@@ -9,7 +9,7 @@ switch flag,
   % Initialization %
   %%%%%%%%%%%%%%%%%%
   case 0,                                                
-    [sys,ul0,str,ts] = mdlInitializeSizes(params_symb,uini);    
+    [sys,ul0,str,ts,simStateCompliance] = mdlInitializeSizes(params_symb,uini);    
     
   %%%%%%%%%%  
   % Update %
@@ -30,7 +30,7 @@ switch flag,
     sys = mdlTerminate();
 
   otherwise
-    error(['unhandled flag = ',num2str(flag)]);
+    DAStudio.error('Simulink:blocks:unhandledFlag', num2str(flag));
 end
 
 %end sfundsc2
@@ -41,13 +41,13 @@ end
 % Return the sizes, initial conditions, and sample times for the S-function.
 %=============================================================================
 %
-function [sys,ul0,str,ts]=mdlInitializeSizes(params_symb,uini)
+function [sys,ul0,str,ts,simStateCompliance]=mdlInitializeSizes(params_symb,uini)
 clear mex;
 sizes = simsizes;
 
 sizes.NumContStates  = 0;
 sizes.NumDiscStates  = params_symb.m;
-sizes.NumOutputs     = 2*params_symb.m+params_symb.n+1;
+sizes.NumOutputs     = params_symb.m+1;%2*params_symb.m+params_symb.n+1;
 sizes.NumInputs      = params_symb.n;
 sizes.DirFeedthrough = 1;
 sizes.NumSampleTimes = 1;
@@ -57,7 +57,10 @@ sys = simsizes(sizes);
 ul0  = pss_build_fsm_indices(params_symb,uini,'u');
 
 str = [];
-ts  = [params_symb.tau 0]; % Sample period of "tau" seconds (10Hz)
+ts  = [params_symb.tau 0]; % Sample period of "tau" seconds
+
+% speicfy that the simState for this s-function is same as the default
+simStateCompliance = 'DefaultSimState';
 
 % end mdlInitializeSizes
 
@@ -101,7 +104,8 @@ if (isnan(uout))
     stop=1;
 end;
 
-sys=[uout;xl;ul;stop]; %input, labels-states, labels-inputs, stop
+sys=[uout;stop];
+%sys=[uout;xl;ul;stop]; %input, labels-states, labels-inputs, stop
 %end mdlOutputs
 
 function sys = mdlTerminate()
