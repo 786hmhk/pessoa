@@ -1,8 +1,41 @@
-/*
- * main.cpp
+/**
+ * @file
+ * @author Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>
+ * @version 0.5
  *
- *  Created on: Apr 13, 2013
- *      Author: tanasaki
+ * @section LICENSE
+ *
+ * Copyright (c) <2013>, <TU Delft: Delft University of Technology>
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of TU Delft: Delft University of Technology nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL TU DELFT: DELFT UNIVERSITY OF TECHNOLOGY BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *
+ * @section DESCRIPTION
+ *
+ * Contains main function used to test the ShortestPath Class.
+ *
+ * 		No details yet.
  */
 
 #include "main.hh"
@@ -12,10 +45,7 @@ int main(int argc, char* argv[]) {
 
 	printf("Main.\n\n");
 
-
-	example_FW();
-
-//	example_DSP();
+	example_DSP();
 
 	printf("\n\nExiting Program...\n");
 
@@ -28,9 +58,11 @@ int main(int argc, char* argv[]) {
 
 void example_DSP(){
 
-	printf("Deterministic Shortest Path Example.\n\n");
+	printf("***Deterministic Shortest Path Example.***\n\n");
 
 	int no_states, no_inputs;
+	int *state_costs;
+	std::vector<int> target_set;
 
 	// Initialize the Manager.
 	Cudd mgr(0, 0);
@@ -44,10 +76,49 @@ void example_DSP(){
 	ADD C;
 	// ADD representing the Cost Adjacency Matrix
 	ADD AG;
+	// ADD of the Target Set
+	ADD W;
+
+
+
+
+	/************************ Define the System ******************************/
+
+	// Number of states/inputs
+	no_states = 5;
+	no_inputs = 5;
+
+	state_costs = new int[no_states];
+
+	// Give the cost of each state
+	state_costs[0] = 1;
+	state_costs[1] = 2;
+	state_costs[2] = 1;
+	state_costs[3] = 3;
+	state_costs[4] = 5;
+
+	// Define the System in terms of transitions.
+	// Important: Only deterministic transitions!
+	#define SYSTEM_TRANSITIONS \
+							\
+	  TRANSITION(0,0,1)		\
+	+ TRANSITION(0,2,2)		\
+	+ TRANSITION(1,3,3)     \
+	+ TRANSITION(2,2,3)		\
+	+ TRANSITION(1,4,4)		\
+	+ TRANSITION(2,4,4)
+
+	// Give the Target Set W.
+	target_set.push_back(3);
+	target_set.push_back(4);
+
+	/************************************************************************/
+
+
 
 
 	/* Get the system as a BDD that satisfies (x,u,x') -> {0,1}. */
-	get_S_xux(&mgr, &S);
+	get_S_xux(&mgr, &S, no_states, no_inputs);
 
 	// Create .dot file
 	std::vector<BDD> nodes_bdd;
@@ -58,10 +129,8 @@ void example_DSP(){
 	fclose(outfile);
 	nodes_bdd.clear();
 
-//	mgr.ReduceHeap(CUDD_REORDER_RANDOM, 5);
-
 	/* Get the cost of each transition of the system, described by an ADD. x -> R. */
-	get_S_cost_x(&mgr, &C);
+	get_S_cost_x(&mgr, &C, no_states, state_costs);
 
 	// Create .dot file
 	std::vector<ADD> nodes_add;
@@ -72,9 +141,7 @@ void example_DSP(){
 	nodes_add.clear();
 
 	/* Create the Cost Adjacency Matrix */
-	no_states = 4;
-	no_inputs = 6;
-	AG = sp.getCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
+	AG = sp.createCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
 
 	// Create .dot file
 	nodes_add.push_back(AG);
@@ -85,97 +152,47 @@ void example_DSP(){
 
 	/* Find All-pair Shortest Path */
 	ADD APSP;
-	ADD P;
-	sp.FloydWarshall(&AG);
-
-
-
-
-
-
-
-
-
-
-
-
-
-//	BDD Z;
-//
-//	BDD *x;
-//	BDD *u;
-//	BDD *x_;
-//
-//	int i;
-//
-//	x  = new BDD[no_states];
-//	u  = new BDD[no_inputs];
-//	x_ = new BDD[no_states];
-//
-//
-//	for (i = 0; i < no_states; i++){
-//		x[i]  = mgr.bddVar(i);
-//		x_[i] = mgr.bddVar(i + 100);
-//	}
-//
-//	for (i = 0; i < no_inputs; i++){
-//		u[i]  = mgr.bddVar(i + 10);
-//	}
-//
-//	Z = BDD_transition(&mgr, x, u, x_, no_states, no_inputs, 3,1,3);
-//
-//	// Create .dot file
-//	nodes_bdd.push_back(Z);
-//	outfile = fopen("System_input_expl.dot", "w");
-//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_bdd.clear();
-//
-//
-//
-//	Z = S.Restrict(x[0]);
-//	Z = Z.Restrict(u[4]);
-//
-//	Z = S.Restrict(Z);
-//	Z = mgr.VectorSupport(nodes_bdd);
-//
-//	if (Z.IsOne()){
-//		printf("Valid input.\n");
-//	}
-//	if (Z.IsZero()){
-//		printf("Invalid input.\n");
-//	}
-//
-//
-//
-//	Z = BDD_transition(&mgr, x, u, x_, no_states, no_inputs, 3,2,0);
-//	Z = S.Restrict(Z);
-//
-//	if (Z.IsOne()){
-//		printf("Valid input.\n");
-//	}
-//	if (Z.IsZero()){
-//		printf("Invalid input.\n");
-//	}
-
-
-
+	ADD PA;
+	sp.FloydWarshall(&AG, &APSP, &PA);
 
 	// Create .dot file
-//	nodes_bdd.push_back(Z);
-//	outfile = fopen("System_output_expl.dot", "w");
-//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_bdd.clear();
+	nodes_add.push_back(APSP);
+	outfile = fopen("System_APSP.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(PA);
+	outfile = fopen("System_APSP_PA.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+	/* Find the All-pair Shortest Path to  a Set. */
+	ADD APSP_W;
+	ADD PA_W;
+	sp.APtoSetSP(&APSP, &PA, target_set, &APSP_W, &PA_W);
+
+	// Create .dot file
+	nodes_add.push_back(APSP_W);
+	outfile = fopen("System_APSP_W.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(PA_W);
+	outfile = fopen("System_APSP_PA_W.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
 
 
-
-
+	printf("\n***Deterministic Shortest Path Example END.***\n");
 }
 
 
 /**/
-void get_S_xux(Cudd *mgr, BDD *T){
+void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs){
 
 
 	BDD *x;
@@ -184,268 +201,147 @@ void get_S_xux(Cudd *mgr, BDD *T){
 
 	int i;
 
-	int no_states = 4;
-	int no_inputs = 6;
+	int no_state_vars = no_states/2 + no_states % 2;
+	int no_input_vars = no_inputs/2 + no_inputs % 2;
 
-	x  = new BDD[no_states];
-	u  = new BDD[no_inputs];
-	x_ = new BDD[no_states];
+	x  = new BDD[no_state_vars];
+	u  = new BDD[no_input_vars];
+	x_ = new BDD[no_state_vars];
 
-//	BDD one  = mgr->bddOne();
-//	BDD zero = mgr->bddZero();
-//	BDD zero = !one;
-
-
-	for (i = 0; i < no_states; i++){
+	// Create the variables
+	for (i = 0; i < no_state_vars; i++){
 		x[i]  = mgr->bddVar(i);
 		x_[i] = mgr->bddVar(i + 100);
 	}
 
-	for (i = 0; i < no_inputs; i++){
+	for (i = 0; i < no_input_vars; i++){
 		u[i]  = mgr->bddVar(i + 10);
 	}
 
-
-	/*************** Create the example-system ******************/
-
-	*T =
-		  BDD_transition(mgr,x,u,x_,no_states,no_inputs,0,0,1)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,0,1,2)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,0,2,3)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,1,3,2)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,2,4,1)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,3,1,2)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,3,2,0)
-		+ BDD_transition(mgr,x,u,x_,no_states,no_inputs,3,5,1)
-		;
-
-	/***********************************************************/
-
-	/* Create .dot file */
-//	std::vector<BDD> nodes;
-//	nodes.push_back(*T);
-//	FILE *outfile;
-//	outfile = fopen("System_T_xux.dot", "w");
-//	mgr->DumpDot(nodes, NULL, NULL, outfile);
-//	fclose(outfile);
+	// Create the system
+	*T = SYSTEM_TRANSITIONS;
 }
 
 /**/
-void get_S_cost_x(Cudd *mgr, ADD *C){
+void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs){
 
 	ADD *x_, *constants;
-	int no_states = 4;
-	int i;
 
+	int no_state_vars = no_states/2 + no_states % 2;
+	int i, j;
 
-	x_        = new ADD[no_states];
+	ADD one  = mgr->addOne();
+	ADD zero = mgr->addZero();
+
+	x_        = new ADD[no_state_vars];
 	constants = new ADD[no_states];
 
 
-	// set background
+	// Set background (if not set) :P
 	mgr->SetBackground(mgr->plusInfinity());
 
-	for (int i = 0; i < no_states; i++){
-		x_[i] = mgr->addVar(i + 100);
+
+	for (i = 0; i < no_state_vars; i++){
+		x_[i]  = mgr->addVar(i + 100);
+		x_[i]  = x_[i].Ite(one, zero);
 	}
 
 
-	/************** Give the cost of each state  ****************/
-
-	constants[0] = mgr->constant(2);
-	constants[1] = mgr->constant(2);
-	constants[2] = mgr->constant(4);
-	constants[3] = mgr->constant(3);
-
-	/************************************************************/
-
-	x_[no_states - 1] = x_[no_states - 1].Ite(constants[no_states -1], mgr->plusInfinity());
-
-	for (i = (no_states-2); i>= 0; i--){
-		x_[i] = x_[i].Ite(constants[i], x_[i+1]);
+	// Get the costs
+	for(i = 0; i < no_states; i++){
+		constants[i] = mgr->constant(costs[i]);
 	}
 
-	*C = x_[0];
 
-	/* Create .dot file */
-//	std::vector<ADD> nodes;
-//	nodes.push_back(*C);
-//	FILE *outfile;
-//	outfile = fopen("System_Cost_x.dot", "w");
-//	mgr->DumpDot(nodes, NULL, NULL, outfile);
-//	fclose(outfile);
+	// Auxiliary Variables
+	int state;
+	ADD temp;
+	ADD minterm;
+
+
+	// Create the cost matrix
+	*C = mgr->background();
+
+	for (i = 0; i < no_states; i++){
+
+		state = i;
+		minterm = one;
+
+		for(j = no_state_vars - 1; j >= 0; j--){
+
+			if (state & 0x01){
+				temp = minterm * x_[j];
+			}
+			else{
+				temp = minterm * (~x_[j]);
+			}
+			minterm = temp;
+			state >>= 1;
+		}
+
+		// Create the constant node.
+		temp = minterm.Ite(constants[i], *C);
+		*C = temp;
+	}
 }
 
 /**/
-BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_states, int no_inputs, int xi, int ui, int xi_){
+BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_state_var, int no_input_var, int xi, int ui, int xi_){
 
 	int i;
 
 	int iteration;
 
-	if (no_inputs > no_states){
-		iteration = no_inputs;
+	if (no_input_var > no_state_var){
+		iteration = no_input_var;
 	}
 	else{
-		iteration = no_states;
+		iteration = no_state_var;
 	}
 
 	BDD transition = mgr->bddOne();
 
+
 	for (i = 0; i < iteration; i++){
 
-		if (i < no_states){
-			if (i == xi){
-				transition *= x[i] *  (!x_[i]);
-			}
-			else if (i == xi_){
-				transition *= (!x[i]) * x_[i];
+		// Writing backwards because of the format: MSB--LSB
+		if (i < no_state_var){
+			if ((xi & 0x01) == 1){
+				transition *= x[no_state_var -1 - i];
 			}
 			else{
-				transition *= (!x[i]) * (!x_[i]);
+				transition *= !x[no_state_var -1 - i];
+			}
+
+			if ((xi_ & 0x01) == 1){
+				transition *= x_[no_state_var -1 - i];
+			}
+			else{
+				transition *= !x_[no_state_var -1 - i];
 			}
 		}
 
 
-		if (i < no_inputs){
-			if (i == ui){
-				transition *= u[i];
+		if (i < no_input_var){
+			if ((ui & 0x01) == 1){
+				transition *= u[no_input_var -1 - i];
 			}
 			else{
-				transition *= !u[i];
+				transition *= !u[no_input_var -1 - i];
 			}
 		}
+
+		//
+		xi  >>= 1;
+		ui  >>= 1;
+		xi_ >>= 1;
 	}
 
-	//printf("Transition end.\n");
 	return transition;
 }
 
 
-void example_FW(){
 
-		ADD E[1];
-		ADD** x;
-		ADD** y;
-		ADD** xn;
-		ADD** yn;
-		int * nx;
-		int * ny;
-		int * m;
-		int * n;
-
-
-
-		// Memory allocations
-		nx = (int *) malloc(sizeof(int));
-		ny = (int *) malloc(sizeof(int));
-		m  = (int *) malloc(sizeof(int));
-		n  = (int *) malloc(sizeof(int));
-
-		// Initialize the Manager.
-		Cudd mgr;
-
-		// Set new background. (We need plus-infinity for the all-pair shortest path problem).
-		mgr.SetBackground(mgr.plusInfinity());
-
-		// Open the file (read mode).
-		FILE* matrixfile = fopen("matrix3.txt", "r");
-		if (matrixfile == NULL) {
-			printf("Error while opening file.\n");
-			exit(1);
-		}
-
-
-		// Import the matrix from the file.
-
-		/*
-		 * Caution!!
-		 *
-		 * The variable bx and by have to have a reasonable spacing between them. They are used to index to row and column variables
-		 * respectively. The can be chosen arbitrary but with caution. For example if if bx = 0 and bx =1  (and step 1, i.e. sx=sy=1)
-		 * and we have more the one row or column variable, then the row variable is going to "override" the column  variable and they
-		 * will be seen as the same and therefore the ADD representation is going to be wrong.
-		 *
-		 * So for example if we need 2 variables to decode the rows and by using bx = 0 and (step) sx = 1 then
-		 * the first row variable is going to be indexed as 0 and the second as 1. This "forbids" us to choose
-		 * by = 0 or 1. So use for instance by = 100 with (step) sy = 1 to get column variables indexed as 100 and 101.
-		 *
-		 * */
-
-
-		printf("Reading from file... ");
-
-		mgr.Read(matrixfile, E, x, y, xn, yn, nx, ny, m, n, 0, 1, 2, 1);
-
-		std::vector<ADD> nodes;
-		nodes.push_back(E[0]);
-
-		// Reorder the ADD.
-		int order[4] = { 0, 2, 1, 3 };
-		//	printf("%d %d %d %d \n", order[0], order[1], order[2], order[3]);
-		mgr.ShuffleHeap(order);
-
-		FILE *outfile; //output file pointer for .dot file
-		outfile = fopen("A_matrix_cpp.dot", "w");
-		mgr.DumpDot(nodes, NULL, NULL, outfile);
-		fclose(outfile);
-
-
-
-		/* All-pair shortest path example. */
-
-		printf("\nAll-pair shortest path example.\n");
-		FloydWarshallParam *param = new FloydWarshallParam(*nx);
-
-
-		param->x_index[0] = 0;
-		param->x_index[1] = 1;
-		param->y_index[0] = 2;
-		param->y_index[1] = 3;
-
-
-
-		/*
-		 *
-		 * Floyd Warshall
-		 *
-		 * */
-		ShortestPath sp(&mgr);
-		sp.FloydWarshall(&E[0]);
-		mgr.FloydWarshall(&E[0], param);
-
-		printf("\nFW-Algorithm end.\n");
-
-	//
-	//	/*
-	//	 *
-	//	 * Repeated Squaring
-	//	 *
-	//	 *
-	//	 */
-	//
-	//
-	//
-	//	/* De-allocate Memory. */
-	//	printf("Main: De-allocating memory. \n");
-	//	delete param;
-	//	free(add_matrix);
-	//
-	//
-	//	free(xn[0]);
-	//	free(yn[0]);
-	//	free(x[0]);
-	//	free(y[0]);
-	//	free(x);
-	//	free(y);
-	//	free(xn);
-	//	free(yn);
-	//	free(nx);
-	//	free(ny);
-	//	free(m);
-	//	free(n);
-
-}
 
 
 

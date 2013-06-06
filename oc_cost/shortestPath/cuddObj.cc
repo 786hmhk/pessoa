@@ -1068,9 +1068,6 @@ Cudd::Cudd(
 {
     p = new Capsule;
     p->manager = Cudd_Init(numVars,numVarsZ,numSlots,cacheSize,maxMemory);
-    if (p->manager == NULL){
-    	printf("\nCritical Error! Manager: NULL pointer!\n");
-    }
     p->errorHandler = defaultError;
     p->timeoutHandler = defaultError;
     p->verbose = 0;		// initially terse
@@ -4483,166 +4480,7 @@ Cudd::Hamming(
 } // Cudd::Hamming
 
 
-
-bool Cudd::FloydWarshall(ADD *AG, FloydWarshallParam *param) {
-
-	printf("\nFloyd Warshall Algorithm.\n");
-
-	printf("Number of variables: %d\n", param->vars);
-
-	// C++ to C
-	DdNode *AG_    = AG->getNode();
-	DdManager *mgr = p->manager;
-//	cf_minterm * minterms = createMinterms(mgr, param);
-
-	DdNode *S, *P;
-	DdNode *one, *zero, *xminterm, *yminterm, *temp_node;
-	DdNode *R, *C;
-	DdNode **xx;
-	DdNode **yy;
-
-	int i, j;
-	int matrix_elements;
-	int element;
-
-	DdNode *Result[2];
-	DdNode *TR, *TR_temp;
-
-
-//	long start_time = util_cpu_time();
-
-	/* Memory allocation */
-	xx = (DdNode **) malloc(sizeof(DdNode *) * param->vars);
-	yy = (DdNode **) malloc(sizeof(DdNode *) * param->vars);
-
-	/* "Copy" the AG matrix. */
-	S = AG_;
-	/* Initialize the Pointer array. */
-	TR = Cudd_addConst(mgr, 0);
-
-	/* Zero and One (constant) nodes. Used to create the minterms.*/
-	one  = Cudd_ReadOne(mgr);
-	zero = Cudd_ReadZero(mgr);
-	Cudd_Ref(one);
-	Cudd_Ref(zero);
-
-	/* Create the ADD variables. */
-	printf("Creating the ADD variables\n");
-	// It is important here that they have the same index
-	// with the ADD they are going to be used with.
-	for (i = 0; i < param->vars; i++) {
-		xx[i] = Cudd_addIthVar(mgr, param->x_index[i]);
-		yy[i] = Cudd_addIthVar(mgr, param->y_index[i]);
-		Cudd_Ref(xx[i]);
-		Cudd_Ref(yy[i]);
-    }
-
-
-	/* Iterate over all matrix elements, i.e. nodes of the initial DD. */
-	matrix_elements = 1 << param->vars;
-	printf("Iterating over all matrix elements (%d).\n", matrix_elements);
-
-	for (i = 0; i < matrix_elements; i++){
-
-
-//		printf("\nNode (%d).\n", i);
-
-		element = i;
-		xminterm = one;
-		yminterm = one;
-
-		/* Creating the minterms. */
-		// always construct the ADD from the bottom to the top.
-		for (j = param->vars - 1; j >=0; j--){
-			if (element & 1){
-				// row
-				temp_node = Cudd_addIte(mgr, xx[j], xminterm, zero);
-				Cudd_Ref(temp_node);
-				Cudd_RecursiveDeref(mgr,xminterm);
-				xminterm = temp_node;
-				//column
-				temp_node = Cudd_addIte(mgr, yy[j], yminterm, zero);
-				Cudd_Ref(temp_node);
-				Cudd_RecursiveDeref(mgr,yminterm);
-				yminterm = temp_node;
-			}
-			else{
-				// row
-				temp_node = Cudd_addIte(mgr, xx[j], zero, xminterm);
-				Cudd_Ref(temp_node);
-				Cudd_RecursiveDeref(mgr,xminterm);
-				xminterm = temp_node;
-				//column
-				temp_node = Cudd_addIte(mgr, yy[j], zero, yminterm);
-				Cudd_Ref(temp_node);
-				Cudd_RecursiveDeref(mgr,yminterm);
-				yminterm = temp_node;
-			}
-
-			element >>= 1;
-		}
-
-
-		/* Co-factor the matrix. */
-		// row
-		R = Cudd_Cofactor(mgr, S, xminterm);
-		Cudd_Ref(R);
-		Cudd_RecursiveDeref(mgr, xminterm);
-		// column
-		C = Cudd_Cofactor(mgr, S, yminterm);
-		Cudd_Ref(C);
-		Cudd_RecursiveDeref(mgr, yminterm);
-
-		/* Compute the outer sum. */
-//		P = Cudd_addOuterSum(mgr,S,R,C);
-		Cudd_addOuterSumTrace(mgr,S,R,C,Result,i+1);
-		P = Result[0];
-		Cudd_Ref(P);
-		TR_temp = Cudd_addApply(mgr,Cudd_addPlus,TR,Result[1]);
-		Cudd_Ref(TR_temp);
-
-		/* Keep the new matrix P. Delete others. */
-		Cudd_RecursiveDeref(mgr,R);
-		Cudd_RecursiveDeref(mgr,C);
-		Cudd_RecursiveDeref(mgr,S);
-		Cudd_RecursiveDeref(mgr,TR);
-
-		S = P;
-		TR = TR_temp;
-
-//		char buffer[5] = "0";
-//		sprintf(buffer, "%d", i);
-//		FILE *dotfile1; //output file pointer for .dot file
-//		dotfile1 = fopen(buffer, "w");
-//		Cudd_DumpDot(mgr, 1, &TR, NULL, NULL, dotfile1);
-//		fclose(dotfile1);
-	}
-
-	Cudd_Deref(S); // why? check this.
-
-	/* Memory De-allocation. */
-	free(xx);
-	free(yy);
-
-	/* Print execution time. */
-//	printf("Floyd Warshall execution time: %s\n", util_print_time(util_cpu_time() - start_time));
-
-	FILE *dotfile; //output file pointer for .dot file
-	dotfile = fopen("ADD_FW_cpp_correct.dot", "w");
-	Cudd_DumpDot(mgr, 1, &S, NULL, NULL, dotfile);
-	fclose(dotfile);
-
-	FILE *dotfile1; //output file pointer for .dot file
-	dotfile1 = fopen("ADD_FW_cpp_TR_correct.dot", "w");
-	Cudd_DumpDot(mgr, 1, &TR, NULL, NULL, dotfile1);
-	fclose(dotfile1);
-
-	return 0;
-}
-
-
-
-// Cudd::Read
+/* We'll leave these two out for the time being.
 void
 Cudd::Read(
   FILE * fp,
@@ -4650,7 +4488,7 @@ Cudd::Read(
   ADD** x,
   ADD** y,
   ADD** xn,
-  ADD** yn,
+  ADD** yn_,
   int * nx,
   int * ny,
   int * m,
@@ -4661,34 +4499,10 @@ Cudd::Read(
   int sy)
 {
     DdManager *mgr = p->manager;
-
-    DdNode **matrix_ = (DdNode**) malloc(sizeof(DdNode*));
-
-    DdNode ***x_  = (DdNode***) malloc(sizeof(DdNode*));
-    DdNode ***y_  = (DdNode***) malloc(sizeof(DdNode*));
-    DdNode ***xn_ = (DdNode***) malloc(sizeof(DdNode*));
-    DdNode ***yn_ = (DdNode***) malloc(sizeof(DdNode*));
-
-//    DdNode **matrix_ = (DdNode**) malloc(sizeof(DdNode*));
-//
-//    DdNode ***x_  = (DdNode***) malloc(sizeof(DdNode*));
-//    DdNode ***y_  = (DdNode***) malloc(sizeof(DdNode*));
-//    DdNode ***xn_ = (DdNode***) malloc(sizeof(DdNode*));
-//    DdNode ***yn_ = (DdNode***) malloc(sizeof(DdNode*));
-
-
-    if (Cudd_addRead(fp, mgr, matrix_, x_, y_, xn_, yn_, nx, ny, m, n, bx, sx, by, sy)){
-    	/* characteristic function of the graph */
-    		E[0] = ADD(p, matrix_[0]);
-//        for (int i = 0; i < n; i++) {
-//			G[i] = BDD(p, g[i]);
-//			Cudd_RecursiveDeref(mgr,g[i]);
-//        }
-    }
+    int result = Cudd_addRead(fp, mgr, E, x, y, xn, yn_, nx, ny, m, n, bx, sx, by, sy);
+    checkReturnValue(result);
 
 } // Cudd::Read
-
-
 
 
 void
@@ -4707,29 +4521,11 @@ Cudd::Read(
   int sy)
 {
     DdManager *mgr = p->manager;
-
-    DdNode **matrix_ = (DdNode**) malloc(sizeof(DdNode*));
-
-    DdNode ***x_  = (DdNode***) malloc(sizeof(DdNode*));
-    DdNode ***y_  = (DdNode***) malloc(sizeof(DdNode*));
-    DdNode ***xn_ = (DdNode***) malloc(sizeof(DdNode*));
-    DdNode ***yn_ = (DdNode***) malloc(sizeof(DdNode*));
-
-
-    if (Cudd_addRead(fp, mgr, matrix_, x_, y_, xn_, yn_, nx, ny, m, n, bx, sx, by, sy)){
-    	/* characteristic function of the graph */
-    		E[0] = BDD(p, matrix_[0]);
-//        for (int i = 0; i < n; i++) {
-//			G[i] = BDD(p, g[i]);
-//			Cudd_RecursiveDeref(mgr,g[i]);
-//        }
-    }
-//
-//    int result = Cudd_bddRead(fp, mgr, E, x, y, nx, ny, m, n, bx, sx, by, sy);
-//    checkReturnValue(result);
+    int result = Cudd_bddRead(fp, mgr, E, x, y, nx, ny, m, n, bx, sx, by, sy);
+    checkReturnValue(result);
 
 } // Cudd::Read
-
+*/
 
 
 void
