@@ -40,6 +40,9 @@
 
 #include "main.hh"
 
+#define U_SPACING 100
+#define X__SPACING 1000
+
 
 int main(int argc, char* argv[]) {
 
@@ -68,7 +71,7 @@ void example_DSP(){
 	Cudd mgr(0, 0);
 
 	// Shortest Path Object
-	ShortestPath sp(&mgr);
+//	ShortestPath sp(&mgr);
 
 	// BDD of the System
 	BDD S;
@@ -87,10 +90,16 @@ void example_DSP(){
 	// Number of states/inputs
 	no_states = 5;
 	no_inputs = 5;
+//	no_states = 23;
+//	no_inputs = 36;
+
 
 	state_costs = new int[no_states];
 
 	// Give the cost of each state
+//	for (int i = 0; i < no_states; i++){
+//		state_costs[i] = i + 1;
+//	}
 	state_costs[0] = 1;
 	state_costs[1] = 2;
 	state_costs[2] = 1;
@@ -108,13 +117,34 @@ void example_DSP(){
 	+ TRANSITION(1,4,4)		\
 	+ TRANSITION(2,4,4)
 
+	/*
+	+ TRANSITION(3,4,4)		\
+	+ TRANSITION(4,4,1)		\
+	+ TRANSITION(5,4,4)		\
+	+ TRANSITION(6,4,5)		\
+	+ TRANSITION(7,4,4)		\
+	+ TRANSITION(8,14,4)	\
+	+ TRANSITION(9,20,4)	\
+	+ TRANSITION(10,4,4)	\
+	+ TRANSITION(11,4,6)	\
+	+ TRANSITION(12,4,4)	\
+	+ TRANSITION(13,4,8)	\
+	+ TRANSITION(14,4,4)	\
+	+ TRANSITION(15,35,2)	\
+	+ TRANSITION(16,4,14)	\
+	+ TRANSITION(17,4,10)	\
+	+ TRANSITION(18,4,17)	\
+	+ TRANSITION(19,29,7)	\
+	+ TRANSITION(20,30,20)	\
+	+ TRANSITION(21,15,17)	\
+	+ TRANSITION(22,26,11)
+	*/
+
 	// Give the Target Set W.
 	target_set.push_back(3);
 	target_set.push_back(4);
 
 	/************************************************************************/
-
-
 
 
 	/* Get the system as a BDD that satisfies (x,u,x') -> {0,1}. */
@@ -139,6 +169,13 @@ void example_DSP(){
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
+
+
+	long long start_time = get_usec();
+
+	/* Create the Shortest Path Object */
+	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
+//	ShortestPath sp(&mgr);
 
 	/* Create the Cost Adjacency Matrix */
 	AG = sp.createCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
@@ -187,7 +224,7 @@ void example_DSP(){
 	nodes_add.clear();
 
 
-	printf("\n***Deterministic Shortest Path Example END.***\n");
+	printf("\n***Deterministic Shortest Path Example END. Execution time: %ds (%dms) (%dus)***\n", (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 }
 
 
@@ -211,11 +248,11 @@ void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs){
 	// Create the variables
 	for (i = 0; i < no_state_vars; i++){
 		x[i]  = mgr->bddVar(i);
-		x_[i] = mgr->bddVar(i + 100);
+		x_[i] = mgr->bddVar(i + X__SPACING);
 	}
 
 	for (i = 0; i < no_input_vars; i++){
-		u[i]  = mgr->bddVar(i + 10);
+		u[i]  = mgr->bddVar(i + U_SPACING);
 	}
 
 	// Create the system
@@ -242,7 +279,7 @@ void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs){
 
 
 	for (i = 0; i < no_state_vars; i++){
-		x_[i]  = mgr->addVar(i + 100);
+		x_[i]  = mgr->addVar(i + X__SPACING);
 		x_[i]  = x_[i].Ite(one, zero);
 	}
 
@@ -341,7 +378,15 @@ BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_state_var, int no_
 }
 
 
+long long get_usec(void){
+	long long r;
+	struct timeval t;
 
+
+	gettimeofday(&t, NULL);
+	r = t.tv_sec * 1000000 + t.tv_usec;
+	return r;
+}
 
 
 

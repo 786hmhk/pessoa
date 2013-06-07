@@ -43,6 +43,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>     /* exit, EXIT_FAILURE */
+#include <sys/time.h>   /* time profiling */
 
 #include <pthread.h>
 
@@ -64,5 +65,6 @@ void example_DSP();
 void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs);
 BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_states, int no_inputs, int xi, int ui, int xi_);
 void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs);
+long long get_usec(void);
 
 #endif /* MAIN_H_ */

@@ -49,8 +49,65 @@
  */
 ShortestPath::ShortestPath(Cudd *mgr_cpp) {
 
+	// Cudd Managers
 	this->mgr_cpp = mgr_cpp;
+	this->mgr     = mgr_cpp->getManager();
+
+	// System not analyzed this way.
+	this->system_analyzed = false;
+
+	this->no_states       = 0;
+	this->no_inputs       = 0;
+	this->no_state_vars   = 0;
+	this->no_input_vars   = 0;
+
 } /* ShortestPath */
+
+//! ShortestPath Constructor. Analyzes the System first.
+/**
+ * It assumes the CUDD manager has already been initialized. It takes also as argument the
+ * system in order to analyze it and creates the system variables that are going to be needed
+ * in the methods of this class. The purpose of this is to speed up all methods that need the
+ * system variables. Use this constructor if know in advance that you are going to use more than
+ * one method for one particular system.
+ *
+ * @param mgr_cpp the pointer to the CUDD manager's object.
+ * @param system is the pointer to the BDD of the system.
+ * @param no_states is the number of states the system has.
+ * @param no_inputs is the number of inputs the system has.
+ * @see ShortestPath(Cudd *mgr_cpp)
+ */
+ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, unsigned int no_inputs){
+
+	// Cudd Managers
+	this->mgr_cpp = mgr_cpp;
+	this->mgr     = mgr_cpp->getManager();
+
+	// Get the number of states and inputs;
+	this->no_states = no_states;
+	this->no_inputs = no_inputs;
+
+	// Get the number of variables
+	this->no_state_vars = no_states/2 + no_states % 2;
+	this->no_input_vars = no_inputs/2 + no_inputs % 2;
+
+	// Get the index of the variables of the BDD, representing the system.
+	std::vector<int> vars_index = getVarsIndex(system);
+
+	if (vars_index.size() != (2 * no_state_vars + no_input_vars)){
+		printf("***Critical error! Number of states/inputs mismatch! Revise!\n");
+		exit(-1);
+	}
+
+	// Create the variables of the System.
+	createVariables(vars_index, no_state_vars, no_input_vars, &bdd_x, &bdd_u, &bdd_x_);
+	createVariables(vars_index, no_state_vars, no_input_vars, &add_x, &add_x_);
+
+	// System is being analyzed this way.
+	this->system_analyzed = true;
+
+} /* ShortestPath */
+
 
 //! ShortestPath De-Constructor.
 /**
@@ -60,100 +117,7 @@ ShortestPath::~ShortestPath() {
 
 } /* ~ShortestPath */
 
-//! Create the ADD Target set W given the set of states of W as a vector<int>.
-/**
- * Method takes as input the Systems ADD or any other ADD that contains the System's variables,
- * the vector containing the states of the target set and returns the ADD of the target set.
- * @param system is the pointer to the System's ADD or any other ADD that contains the System's variables.
- * @param no_states is the number of states of the System.
- * @param target_set is the vector containing the states of the target set W.
- * @return The ADD of the target set W.
- */
-ADD ShortestPath::createTargetSet(ADD *system, int no_states, int no_inputs, std::vector<int> target_set){
-	//
-	std::vector<ADD> x;
-	std::vector<ADD> y;
-	ADD minterm;
-	ADD one  = mgr_cpp->addOne();
-	ADD zero = mgr_cpp->addZero();
-	ADD cofactor;
-	ADD temp;
 
-	unsigned int i;
-
-	printf("ShortestPath::createTargetSet: Number of states in W: %d\n", target_set.size());
-
-	// Get the number of variables
-	int no_state_vars = no_states/2 + no_states % 2;
-
-	// Get the index of the variables of the BDD, representing the system.
-	std::vector<int> vars_index = getVarsIndex(system);
-
-	// Create the variables of the System.
-	createVariables(vars_index, no_state_vars, no_inputs, &x, &y);
-
-	cofactor = zero;
-//	cofactor = mgr_cpp->background();
-
-	for (i = 0; i < target_set.size(); i++){
-
-		minterm = createMinterm(&y, target_set[i]);
-
-		// Create the constant node.
-		temp     = minterm.Ite(one, cofactor);
-		cofactor = temp;
-	}
-
-	return cofactor;
-} /* createTargetSet */
-
-//! Create the ADD Target set W given the set of states of W as a vector<int>.
-/**
- * Method takes as input the Systems BDD, the vector containing the states
- * of the target set and returns the ADD of the target set.
- * @param system is the pointer to the System's BDD.
- * @param no_states is the number of states of the System.
- * @param target_set is the vector containing the states of the target set W.
- * @return The ADD of the target set W.
- */
-ADD ShortestPath::createTargetSet(BDD *system, int no_states, int no_inputs, std::vector<int> target_set){
-
-	//
-	std::vector<ADD> x;
-	std::vector<ADD> y;
-	ADD minterm;
-	ADD one  = mgr_cpp->addOne();
-	ADD zero = mgr_cpp->addZero();
-	ADD cofactor;
-	ADD temp;
-
-	unsigned int i;
-
-//	printf("ShortestPath::createTargetSet: No states: %d\n", target_set.size());
-
-	// Get the number of variables
-	int no_state_vars = no_states/2 + no_states % 2;
-
-	// Get the index of the variables of the BDD, representing the system.
-	std::vector<int> vars_index = getVarsIndex(system);
-
-	// Create the variables of the System.
-	createVariables(vars_index, no_state_vars, no_inputs, &x, &y);
-
-	cofactor = zero;
-//	cofactor = mgr_cpp->background();
-
-	for (i = 0; i < target_set.size(); i++){
-
-		minterm = createMinterm(&y, target_set[i]);
-
-		// Create the constant node.
-		temp     = minterm.Ite(one, cofactor);
-		cofactor = temp;
-	}
-
-	return cofactor;
-} /* createTargetSet */
 
 
 //! Create the Cost Adjacency Matrix of a given System. (Deterministic System)
@@ -176,24 +140,46 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 	int i,j,k;
 	ADD AG;
 
-	//
-	std::vector<BDD> x;
-	std::vector<BDD> u;
-	std::vector<BDD> x_;
-	//
-	std::vector<ADD> xx;
-	std::vector<ADD> xx_;
+	// BDD system variables
+	std::vector<BDD> *bdd_x;
+	std::vector<BDD> *bdd_u;
+	std::vector<BDD> *bdd_x_;
+	// ADD system variables
+	std::vector<ADD> *add_x;
+	std::vector<ADD> *add_x_;
 
-	// Get the number of variables
-	int no_state_vars = no_states/2 + no_states % 2;
-	int no_input_vars = no_inputs/2 + no_inputs % 2;
+#ifdef ENABLE_TIME_PROFILING
+	long long start_time = get_usec();
+#endif
 
-	// Get the index of the variables of the BDD, representing the system.
-	std::vector<int> vars_index = getVarsIndex(system);
+	if (!system_analyzed){
 
-	// Create the variables of the System.
-	createVariables(vars_index, no_state_vars, no_input_vars, &x, &u, &x_);
-	createVariables(vars_index, no_state_vars, no_input_vars, &xx, &xx_);
+		// Allocate memory for the vectors.
+		bdd_x  = new std::vector<BDD>;
+		bdd_u  = new std::vector<BDD>;
+		bdd_x_ = new std::vector<BDD>;
+		add_x  = new std::vector<ADD>;
+		add_x_ = new std::vector<ADD>;
+
+		// Get the number of variables
+		int no_state_vars = no_states/2 + no_states % 2;
+		int no_input_vars = no_inputs/2 + no_inputs % 2;
+
+		// Get the index of the variables of the BDD, representing the system.
+		std::vector<int> vars_index = getVarsIndex(system);
+
+		// Create the variables of the System.
+		createVariables(vars_index, no_state_vars, no_input_vars, bdd_x, bdd_u, bdd_x_);
+		createVariables(vars_index, no_state_vars, no_input_vars, add_x, add_x_);
+	}
+	else{
+		bdd_x  = &this->bdd_x;
+		bdd_u  = &this->bdd_u;
+		bdd_x_ = &this->bdd_x_;
+
+		add_x  = &this->add_x;
+		add_x_ = &this->add_x_;
+	}
 
 	// temporary variables
 	BDD system_rstct_x;
@@ -219,7 +205,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 	for (i = no_states - 1; i >= 0; i--){
 
 		// Create the x minterm.
-		bdd_minterm = createMinterm(&x,i);
+		bdd_minterm = createMinterm(bdd_x,i);
 
 		// Restrict the System's BDD given that state.
 		system_rstct_x = system->Restrict(bdd_minterm);
@@ -227,7 +213,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 
 		/* Add the cost of each state to zero. */
 		// Create the minterm.
-		add_minterm = createMinterm(&xx, &xx_, i, i);
+		add_minterm = createMinterm(add_x, add_x_, i, i);
 		// Create the constant node. Zero node
 		AG = add_minterm.Ite(mgr_cpp->constant(0), AG);
 
@@ -236,7 +222,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 			total_iter++;
 
 			// Create the u minterm.
-			bdd_minterm = createMinterm(&u,j);
+			bdd_minterm = createMinterm(bdd_u,j);
 
 			// not a valid input.
 			if ((system_rstct_x.Restrict(bdd_minterm)).IsZero()){
@@ -252,7 +238,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 					total_iter++;
 
 					// Create the x' minterm.
-					bdd_minterm = createMinterm(&x_,k);
+					bdd_minterm = createMinterm(bdd_x_,k);
 
 					// not a valid input.
 					if ((system_rstct_u.Restrict(bdd_minterm)).IsZero()){
@@ -264,10 +250,10 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 						printf("%d,%d,%d\n", i,j,k);
 
 						// Create the minterm.
-						add_minterm = createMinterm(&xx, &xx_, i, k);
+						add_minterm = createMinterm(add_x, add_x_, i, k);
 
 						// Create the constant node.
-						AG = add_minterm.Ite(state_cost->Restrict(createMinterm(&xx_, k)), AG);
+						AG = add_minterm.Ite(state_cost->Restrict(createMinterm(add_x_, k)), AG);
 
 						break; // TODO: If it is deterministic then we can break here.
 					}
@@ -275,7 +261,12 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 			}
 		}
 	}
+
+#ifdef ENABLE_TIME_PROFILING
 	printf("ShortestPath::getCostAdjacencyMatrix: Total iterations: %d\n", total_iter);
+	/* Print execution time. */
+	printf("ShortestPath::getCostAdjacencyMatrix: Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
+#endif
 	return AG;
 } /* createCostAdjacencyMatrix */
 
@@ -417,7 +408,7 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y,
  *
  * The result is returned using the pointers to the vectors @param x, @param u and @param x_.
  *
- * __Imporatant__: The memory for the vectors @param x, @param u and @param x_ is assumed to be already allocated.
+ * __Imporatant Notice__: The memory for the vectors @param x, @param u and @param x_ is assumed to be already allocated.
  *
  * @param vars_index contains all available indexes.
  * @param no_state_vars is the number of state variables (or x) variables being used.
@@ -454,7 +445,7 @@ void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_var
  *
  * The result is returned using the pointers to the vectors @param x, @param u and @param x_.
  *
- * __Imporatant__: The memory for the vectors @param x, @param u and @param x_ is assumed to be already allocated.
+ * __Imporatant Notice__: The memory for the vectors @param x, @param u and @param x_ is assumed to be already allocated.
  *
  * @param vars_index contains all available indexes.
  * @param no_state_vars is the number of state variables (or x) variables being used.
@@ -552,6 +543,126 @@ inline std::vector<int> ShortestPath::getVarsIndex(ADD *add){
 	return vars_index;
 } /* getVarsIndex */
 
+//! Create the ADD Target set W given the set of states of W as a vector<int>.
+/**
+ * Method takes as input the Systems ADD or any other ADD that contains the System's variables,
+ * the vector containing the states of the target set and returns the ADD of the target set.
+ * @param system is the pointer to the System's ADD or any other ADD that contains the System's variables.
+ * @param no_states is the number of states of the System.
+ * @param target_set is the vector containing the states of the target set W.
+ * @return The ADD of the target set W.
+ */
+ADD ShortestPath::createTargetSet(ADD *system, int no_states, int no_inputs, std::vector<int> target_set){
+	//
+	std::vector<ADD> *add_x;
+	std::vector<ADD> *add_y;
+	ADD minterm;
+	ADD one  = mgr_cpp->addOne();
+	ADD zero = mgr_cpp->addZero();
+	ADD cofactor;
+	ADD temp;
+
+	unsigned int i;
+
+	printf("ShortestPath::createTargetSet: Number of states in W: %d\n", target_set.size());
+
+	if (!system_analyzed){
+
+		// Allocate Memory for the vectors.
+		add_x = new std::vector<ADD>;
+		add_y = new std::vector<ADD>;
+
+		// Get the number of variables
+		int no_state_vars = no_states/2 + no_states % 2;
+
+		// Get the index of the variables of the BDD, representing the system.
+		std::vector<int> vars_index = getVarsIndex(system);
+
+		// Create the variables of the System.
+		createVariables(vars_index, no_state_vars, no_inputs, add_x, add_y);
+	}
+	else{
+		// x and y variables.
+		add_x = &this->add_x;
+		add_y = &this->add_x_;
+	}
+
+	/* Create the target set */
+	cofactor = zero;
+//	cofactor = mgr_cpp->background();
+
+	for (i = 0; i < target_set.size(); i++){
+
+		minterm = createMinterm(add_y, target_set[i]);
+
+		// Create the constant node.
+		temp     = minterm.Ite(one, cofactor);
+		cofactor = temp;
+	}
+
+	return cofactor;
+} /* createTargetSet */
+
+//! Create the ADD Target set W given the set of states of W as a vector<int>.
+/**
+ * Method takes as input the Systems BDD, the vector containing the states
+ * of the target set and returns the ADD of the target set.
+ * @param system is the pointer to the System's BDD.
+ * @param no_states is the number of states of the System.
+ * @param target_set is the vector containing the states of the target set W.
+ * @return The ADD of the target set W.
+ */
+ADD ShortestPath::createTargetSet(BDD *system, int no_states, int no_inputs, std::vector<int> target_set){
+
+	//
+	std::vector<ADD> *add_x;
+	std::vector<ADD> *add_y;
+	ADD minterm;
+	ADD one  = mgr_cpp->addOne();
+	ADD zero = mgr_cpp->addZero();
+	ADD cofactor;
+	ADD temp;
+
+	unsigned int i;
+
+	printf("ShortestPath::createTargetSet: Number of states in W: %d\n", target_set.size());
+
+	if (!system_analyzed){
+
+		// Allocate Memory for the vectors.
+		add_x = new std::vector<ADD>;
+		add_y = new std::vector<ADD>;
+
+		// Get the number of variables
+		int no_state_vars = no_states/2 + no_states % 2;
+
+		// Get the index of the variables of the BDD, representing the system.
+		std::vector<int> vars_index = getVarsIndex(system);
+
+		// Create the variables of the System.
+		createVariables(vars_index, no_state_vars, no_inputs, add_x, add_y);
+	}
+	else{
+		// x and y variables.
+		add_x = &this->add_x;
+		add_y = &this->add_x_;
+	}
+
+	/* Create the target set */
+	cofactor = zero;
+//	cofactor = mgr_cpp->background();
+
+	for (i = 0; i < target_set.size(); i++){
+
+		minterm = createMinterm(add_y, target_set[i]);
+
+		// Create the constant node.
+		temp     = minterm.Ite(one, cofactor);
+		cofactor = temp;
+	}
+
+	return cofactor;
+} /* createTargetSet */
 
 
 //! To be implemented. (if needed).
@@ -560,13 +671,13 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, ADD *W, ADD *APSP_W, ADD *PA_W)
 
 } /* APtoSetSP */
 
-//! Finds the shortest path from all pairs to a given target set @param W. Returns the vector containing the shortest path values and the pointer vector.
+//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
 /**
  * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
  * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
  * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
  *
- * __Important__:
+ * __Important Notice__:
  * - Memory should have been already allocated for the results (@param APSP_W and @param PA_W).
  * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
  * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (@param PA).
@@ -577,8 +688,15 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, ADD *W, ADD *APSP_W, ADD *PA_W)
  * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
  * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
  *        together with the PA ADD.
+ * @see   FloydWarshall
  */
 void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W){
+
+	printf("ShortestPath::APtoSetSP\n");
+
+#ifdef ENABLE_TIME_PROFILING
+	long long start_time = get_usec();
+#endif
 
 	/* No point passing only one state since we have the APSP, but you never know :P */
 	if (W.size() == 1){
@@ -587,35 +705,57 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W
 	}
 	else{
 		unsigned int i;
-		//
-		std::vector<ADD> x;
-		std::vector<ADD> y;
-		//
+		// The x and y variables of the system.
+		std::vector<ADD> *add_x;
+		std::vector<ADD> *add_y;
+		// Temp ADD variables. Used with the restrict operator.
 		ADD APSP_rstrct, PA_rstrct;
+		// Number of x and y variables.
+		int no_vars;
 
-		// Get the index of the variables of the BDD, representing the system.
-		std::vector<int> vars_index = getVarsIndex(APSP);
 
-		//
-		createVariables(vars_index, vars_index.size()/2, 0, &x, &y);
+		if (!system_analyzed){
+
+			// Allocate Memory for the vectors.
+			add_x = new std::vector<ADD>;
+			add_y = new std::vector<ADD>;
+
+			// Get the index of the variables of the BDD, representing the system.
+			std::vector<int> vars_index = getVarsIndex(APSP);
+
+			// Create the variables of the System.
+			createVariables(vars_index, vars_index.size()/2, 0, add_x, add_y);
+
+			// Number of x and y variables.
+			no_vars = vars_index.size();
+		}
+		else{
+
+			// x and y variables.
+			add_x = &this->add_x;
+			add_y = &this->add_x_;
+
+			// Number of x and y variables.
+			no_vars = 2*no_state_vars;
+		}
 
 		// Create the ADD of the Target set W.
-		ADD add_W = createTargetSet(APSP, vars_index.size(), 0, W);
+		ADD add_W = createTargetSet(APSP, no_vars, 0, W);
 
 		// Get the columns of the APSP and the PA ADD, pointed out by W.
 		APSP_rstrct = APSP->Restrict(add_W);
 		PA_rstrct   = PA->Restrict(add_W);
 
-		ADD op1 = APSP_rstrct.Restrict(createMinterm(&y,W[0]));
-		ADD P1  = PA_rstrct.Restrict(createMinterm(&y,W[0]));
+		ADD op1 = APSP_rstrct.Restrict(createMinterm(add_y,W[0]));
+		ADD P1  = PA_rstrct.Restrict(createMinterm(add_y,W[0]));
 		ADD op2;
 		ADD P2;
 		DdNode *result[2];
 
 		/* Iterate over all states of the set W. */
 		for (i = 1; i < W.size(); i++){
-			op2 = APSP_rstrct.Restrict(createMinterm(&y,W[i]));
-			P2  = PA_rstrct.Restrict(createMinterm(&y,W[i]));
+			op2 = APSP_rstrct.Restrict(createMinterm(add_y,W[i]));
+			P2  = PA_rstrct.Restrict(createMinterm(add_y,W[i]));
 			Cudd_addApplyMin2(op1.getNode(),op2.getNode(),P1.getNode(),P2.getNode(),result);
 			op1 = ADD(*mgr_cpp, result[0]);
 			P1  = ADD(*mgr_cpp, result[1]);
@@ -626,7 +766,10 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W
 		*PA_W   = ADD(*mgr_cpp, result[1]);
 	}
 
-
+#ifdef ENABLE_TIME_PROFILING
+	/* Print execution time. */
+	printf("ShortestPath::APtoSetSP: Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
+#endif
 
 
 } /* APtoSetSP */
@@ -636,22 +779,21 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W
 * Method takes as input the Cost Adjacency Matrix of the System as an ADD and returns the all-pairs shortest
 * path values and the pointer array. To receive the return values, two ADD objects have to be passed as arguments.
 * Implements the well-known Floyd-Warshall algorithm.\n
-* __Important__: This method assumes that the arguments (ASPS, PA), which are used to pass the result,
+* __Important Notice__:
+* - This method assumes that the arguments (ASPS, PA), which are used to pass the result,
 * have been already allocated. Empty pointers of these will result to an error!
+* - In the pointer array the value of the node is incremented by one. This is done because we use zero to denote that no intermediate node exist. So, when
+* for example node 0 is being added to the pointer array for some minterm, then it will show up as 1.
 * @param AG is the pointer to the System's BDD.
 * @param APSP is the _allocated_ pointer to the ADD for returning the APSP cost values.
 * @param PA is the _allocated_ pointer to the ADD for returning the pointer array of the APSP.
 */
 void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 
-	printf("Floyd Warshall Algorithm.\n");
-
-//	printf("Number of variables: %d\n", param->vars);
+	printf("ShortestPath::FloydWarshall.\n");
 
 	// C++ to C
-	DdNode *AG_    = AG->getNode();
-	DdManager *mgr = mgr_cpp->getManager();
-//	cf_minterm * minterms = createMinterms(mgr, param);
+	DdNode *AG_ = AG->getNode();
 
 	DdNode *S, *P;
 	DdNode *one, *zero, *xminterm, *yminterm, *temp_node;
@@ -667,20 +809,50 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 	DdNode *Result[2];
 	DdNode *TR, *TR_temp;
 
+#ifdef ENABLE_TIME_PROFILING
+	long long start_time = get_usec();
+#endif
 
-//	long start_time = util_cpu_time();
-	// Get the index of the variables of the BDD, representing the system.
-	std::vector<int> vars_index = getVarsIndex(AG); // TODO: this is done twice if we call the getCostAdjacencyMatrix function
-	no_vars = vars_index.size()/2;
+	if (!system_analyzed){
+		// Get the index of the variables of the BDD, representing the system.
+		std::vector<int> vars_index = getVarsIndex(AG);
+		no_vars = vars_index.size()/2;
 
-	/* Memory allocation */
-	xx = (DdNode **) malloc(sizeof(DdNode *) * no_vars);
-	yy = (DdNode **) malloc(sizeof(DdNode *) * no_vars);
+		/* Memory allocation */
+		xx = (DdNode **) malloc(sizeof(DdNode *) * no_vars);
+		yy = (DdNode **) malloc(sizeof(DdNode *) * no_vars);
 
-	/* "Copy" the AG matrix. */
-	S = AG_;
-	/* Initialize the Pointer array. */
-	TR = Cudd_addConst(mgr, 0);
+		/* Create the ADD variables. */
+		// It is important here that they have the same index
+		// with the ADD they are going to be used with.
+		for (i = 0; i < no_vars; i++) {
+			xx[i] = Cudd_addIthVar(mgr, vars_index[i]);
+			yy[i] = Cudd_addIthVar(mgr, vars_index[i + no_vars]);
+			Cudd_Ref(xx[i]);
+			Cudd_Ref(yy[i]);
+		}
+
+		/* Iterate over all matrix elements, i.e. nodes of the initial DD. */
+		matrix_elements = 1 << no_vars;
+	}
+	else{
+
+		/* Memory allocation */
+		xx = (DdNode **) malloc(sizeof(DdNode *) * no_state_vars);
+		yy = (DdNode **) malloc(sizeof(DdNode *) * no_state_vars);
+
+		/* Create the ADD variables. */
+		for (i = 0; (unsigned int)i < no_state_vars; i++){
+			xx[i] = add_x [i].getNode();
+			yy[i] = add_x_[i].getNode();
+//			Cudd_Ref(xx[i]);
+//			Cudd_Ref(yy[i]);
+		}
+
+		/* Iterate over all matrix elements, i.e. nodes of the initial DD. */
+		matrix_elements = no_states;
+		no_vars         = no_state_vars;
+	}
 
 	/* Zero and One (constant) nodes. Used to create the minterms.*/
 	one  = Cudd_ReadOne(mgr);
@@ -688,19 +860,12 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 	Cudd_Ref(one);
 	Cudd_Ref(zero);
 
-	/* Create the ADD variables. */
-	// It is important here that they have the same index
-	// with the ADD they are going to be used with.
-	for (i = 0; i < no_vars; i++) {
-		xx[i] = Cudd_addIthVar(mgr, vars_index[i]);
-		yy[i] = Cudd_addIthVar(mgr, vars_index[i + no_vars]);
-		Cudd_Ref(xx[i]);
-		Cudd_Ref(yy[i]);
-    }
+	/* "Copy" the AG matrix. */
+	S = AG_;
+	/* Initialize the Pointer array. */
+	TR = Cudd_addConst(mgr, 0);
 
 
-	/* Iterate over all matrix elements, i.e. nodes of the initial DD. */
-	matrix_elements = 1 << no_vars;
 //	printf("Iterating over all matrix elements (%d).\n", matrix_elements);
 
 	for (i = 0; i < matrix_elements; i++){
@@ -783,8 +948,10 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 	free(xx);
 	free(yy);
 
+#ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
-//	printf("Floyd Warshall execution time: %s\n", util_print_time(util_cpu_time() - start_time));
+	printf("ShortestPath::FloydWarshall: Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
+#endif
 
 	/* Create the C++ objects. */
 	*APSP = ADD(*mgr_cpp, S);
@@ -1384,4 +1551,18 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNo
 
 } /* cuddAddApplyRecurTrace */
 
+
+
+
+#ifdef ENABLE_TIME_PROFILING
+long long ShortestPath::get_usec(void){
+	long long r;
+	struct timeval t;
+
+
+	gettimeofday(&t, NULL);
+	r = t.tv_sec * 1000000 + t.tv_usec;
+	return r;
+}
+#endif
 

@@ -48,6 +48,7 @@
 #include <string>
 #include <vector>
 
+
 // C Libs
 #include "cudd.h"
 #include "util.h"
@@ -57,6 +58,12 @@
 
 //! Enables or Disables the use of the cudd cache in some operations.
 //#define ENABLE_CACHE
+#define ENABLE_TIME_PROFILING
+
+
+#ifdef ENABLE_TIME_PROFILING
+#include <sys/time.h>
+#endif
 
 // Cache Tags
 //! Cache Tag for the cache used in AddOuterSumRecurTrace method.
@@ -85,6 +92,22 @@ private:
 
 	// C++ manager.
 	Cudd *mgr_cpp;
+	// C manager.
+	DdManager *mgr;
+	// Systems variables.
+	unsigned int no_states;
+	unsigned int no_inputs;
+	unsigned int no_state_vars;
+	unsigned int no_input_vars;
+	std::vector<BDD> bdd_x;
+	std::vector<BDD> bdd_u;
+	std::vector<BDD> bdd_x_;
+	std::vector<ADD> add_x;
+//	std::vector<ADD> add_u;
+	std::vector<ADD> add_x_;
+	// If the System has been analyzed yet.
+	bool system_analyzed;
+
 
 	void AddOuterSumTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Result, unsigned int node);
 	void AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Result, unsigned int node);
@@ -133,6 +156,9 @@ private:
 	ADD createTargetSet(BDD *system, int no_states, int no_inputs, std::vector<int> target_set);
 
 
+#ifdef ENABLE_TIME_PROFILING
+	long long get_usec(void);
+#endif
 
 
 public:
@@ -142,6 +168,22 @@ public:
 	 * @param mgr_cpp the pointer to the CUDD manager's object.
 	 */
 	ShortestPath(Cudd *mgr_cpp);
+
+	//! ShortestPath Constructor. Analyzes the System first.
+	/**
+	 * It assumes the CUDD manager has already been initialized. It takes also as argument the
+	 * system in order to analyze it and creates the system variables that are going to be needed
+	 * in the methods of this class. The purpose of this is to speed up all methods that need the
+	 * system variables. Use this constructor if know in advance that you are going to use more than
+	 * one method for one particular system.
+	 *
+	 * @param mgr_cpp the pointer to the CUDD manager's object.
+	 * @param system is the pointer to the BDD of the system.
+	 * @param no_states is the number of states the system has.
+	 * @param no_inputs is the number of inputs the system has.
+	 * @see ShortestPath(Cudd *mgr_cpp)
+	 */
+	ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, unsigned int no_inputs);
 
 	//! ShortestPath De-Constructor.
 	/**
@@ -160,7 +202,7 @@ public:
 	 * @param no_inputs is is the number of the inputs of the System.
 	 * @return The ADD of the Cost Adjacency Matrix.
 	 */
-	ADD createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no_states, int no_inputs);
+	ADD createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no_states = 0, int no_inputs = 0);
 
 	 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
 	/**
@@ -178,13 +220,13 @@ public:
 	//! To be implemented. (if needed).
 	void APtoSetSP(ADD *APSP, ADD *PA, ADD *W, ADD *APSP_W, ADD *PA_W);
 
-	//! Finds the shortest path from all pairs to a given target set @param W. Returns the vector containing the shortest path values and the pointer vector.
+	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
 	/**
 	 * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
 	 * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
 	 * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
 	 *
-	 * __Important__:
+	 * __Important Notice__:
 	 * - Memory should have been already allocated for the results (@param APSP_W and @param PA_W).
 	 * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
 	 * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (@param PA).
@@ -195,6 +237,7 @@ public:
 	 * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
 	 * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
 	 *        together with the PA ADD.
+	 * @see   FloydWarshall
 	 */
 	void APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W);
 };
