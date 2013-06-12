@@ -4,10 +4,8 @@
 #---------------------------------------------------------------------------
 .SUFFIXES: .o .c .u
 
-CC	= gcc
-#CC	= cc
-RANLIB	= ranlib
-#RANLIB	= :
+CC	= @CC@
+RANLIB	= @RANLIB@
 PURE	=
 
 EXE	=

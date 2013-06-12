@@ -11,8 +11,8 @@
 OPTNS	=	-DMALLOC_IS_VOIDSTAR
 #OPTNS	=
 
-CC	= cc
-RANLIB	= ranlib
+CC	= @CC@
+RANLIB	= @RANLIB@
 
 #compiler flags
 CFLAGS	=	-g $(OPTNS) $(XCFLAGS)

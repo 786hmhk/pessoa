@@ -28,7 +28,6 @@
 
 # Cudd directory
 WHERE	= ..
-#WHERE	= ../cudd-2.4.0
 
 # Include directory (Cudd include files)
 INCLUDE = $(WHERE)/include
@@ -37,13 +36,7 @@ INCLUDE = $(WHERE)/include
 # Define C Compiler Used #
 #------------------------#
 
-CC	= gcc
-#CC	= g++
-#CC	= cc
-#CC	= icc
-#CC	= ecc
-#CC	= /usr/ucb/cc
-#CC	= c89
+CC	= @CC@
 
 .SUFFIXES: .o .c .u
 
@@ -52,7 +45,7 @@ CC	= gcc
 #---------------#
 
 # For machines with ranlib and you think it is needed
-RANLIB	= ranlib
+RANLIB	= @RANLIB@
 # For machines which either do not have ranlib or can do without it
 #RANLIB	= :
 
