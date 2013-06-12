@@ -349,6 +349,7 @@ $(distdir): FORCE
 	@mkdir -p temp_dist
 	-@cp * temp_dist
 	@cp -r $(CUDD_DIR) temp_dist
+	@cp -r usr temp_dist
 	@for dir in $(SRC_DIRS); do	\
 	    (cp -r $$dir temp_dist)	\
 	done
@@ -358,6 +359,7 @@ $(distdir): FORCE
 	@cd temp_dist; \
 	cp Makefile.in configure config.h.in config.sub install-sh  config.guess ../$(distdir); \
 	cp -r $(CUDD_DIR) ../$(distdir); \
+	cp -r usr ../$(distdir); \
 	for dir in $(SRC_DIRS); do	\
 	    (cp -r $$dir ../$(distdir))	\
 	done 
