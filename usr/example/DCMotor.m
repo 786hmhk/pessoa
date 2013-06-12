@@ -72,7 +72,7 @@ Verbose=1;
 
 % The command pss_abstract computes the symbolic model.
 
-pss_abstract_add(DCMotor_cont,DCMotor_symb,DCMotor_name,Relation,BatchSize,Verbose)
+pss_abstract(DCMotor_cont,DCMotor_symb,DCMotor_name,Relation,BatchSize,Verbose)
 
 %% Synthesize controller
 
