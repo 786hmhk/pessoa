@@ -4,8 +4,8 @@
 #---------------------------------------------------------------------------
 .SUFFIXES: .o .cc .u
 
-CXX	= g++
-RANLIB	= ranlib
+CXX	= @CXX@
+RANLIB	= @RANLIB@
 # Define EXE as .exe for MS-DOS and derivatives.
 PURE	=
 EXE	=

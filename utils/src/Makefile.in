@@ -1,12 +1,19 @@
+#----------------------------------------------------------------------------#
+# Makefile for Pessoa							     #
+# University of California, Los Angeles                                      #
+# Version @VERSION@, June, 2009	                                     	     #
+#----------------------------------------------------------------------------#
+
+
 MEXSUFFIX  = mex
 DIR        = ../..
-CUDDHOME   = $(DIR)/cudd-2.5.0
-MEX        = $(MATLABHOME)/bin/mex
-CXX        = g++
-OBJFILES   = $(CUDDHOME)/util/datalimit.o $(CUDDHOME)/util/cpu_time.o $(CUDDHOME)/util/safe_mem.o $(DIR)/library/src/pessoa.o
-CFLAGS     = -L$(MATLABHOME)/bin/$(SYSTEMEX) -L$(CUDDHOME)/dddmp -L$(CUDDHOME)/epd -L$(CUDDHOME)/util -L$(CUDDHOME)/st -L$(CUDDHOME)/mtr -L$(CUDDHOME)/cudd -L$(CUDDHOME)/include
+
+MEX        = @MEX@
+CXX        = @CXX@
+OBJFILES   = $(CUDD_DIR)/util/datalimit.o $(CUDD_DIR)/util/cpu_time.o $(CUDD_DIR)/util/safe_mem.o $(DIR)/library/src/pessoa.o
+CFLAGS     = -L$(MATLABHOME)/bin/$(SYSTEMEX) -L$(CUDD_DIR)/dddmp -L$(CUDD_DIR)/epd -L$(CUDD_DIR)/util -L$(CUDD_DIR)/st -L$(CUDD_DIR)/mtr -L$(CUDD_DIR)/cudd -L$(CUDD_DIR)/include
 LIBS       = -lmex -lmx -lmat -lcudd -lmtr -lst -lutil -lepd -ldddmp
-INCLUDE    = -I$(MATLABHOME)/extern/include -I$(DIR)/cudd-2.5.0/include -I$(DIR)/library/src
+INCLUDE    = -I$(MATLABHOME)/extern/include -I$(CUDD_DIR)/include -I$(DIR)/library/src
 MEXFLAGS   = -cxx CC='$(CXX)' CXX='$(CXX)' LD='$(CXX)'
 
 all: pessoa_combine.$(MEXSUFFIX) pessoa_set2bdd.$(MEXSUFFIX) pessoa_charf2bdd.$(MEXSUFFIX) pessoa_compare_sets.$(MEXSUFFIX)

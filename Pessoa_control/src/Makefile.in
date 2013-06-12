@@ -1,0 +1,26 @@
+#----------------------------------------------------------------------------#
+# Makefile for Pessoa							     #
+# University of California, Los Angeles                                      #
+# Version @VERSION@, June, 2009	                                     	     #
+#----------------------------------------------------------------------------#
+
+  MEXSUFFIX  = mex
+  DIR        = ../..
+
+  MEX        = @MEX@
+  CXX        = @CXX@
+  OBJFILES   = $(CUDD_DIR)/util/datalimit.o $(CUDD_DIR)/util/cpu_time.o $(CUDD_DIR)/util/safe_mem.o $(DIR)/library/src/pessoa.o
+  CFLAGS     = -L$(MATLABHOME)/bin/$(SYSTEMEX) -L$(CUDD_DIR)/dddmp -L$(CUDD_DIR)/epd -L$(CUDD_DIR)/util -L$(CUDD_DIR)/st -L$(CUDD_DIR)/mtr -L$(CUDD_DIR)/cudd -L$(CUDD_DIR)/include
+  LIBS       = -lmex -lmx -lmat -lcudd -lmtr -lst -lutil -lepd -ldddmp
+  INCLUDE    = -I$(MATLABHOME)/extern/include -I$(DIR)/cudd-2.5.0/include -I$(DIR)/library/src 
+  MEXFLAGS   = -cxx CC='$(CXX)' CXX='$(CXX)' LD='$(CXX)'
+
+  all: pessoa_controller.$(MEXSUFFIX) pessoa_control_nowarn.$(MEXSUFFIX)
+
+        pessoa_controller.$(MEXSUFFIX): pessoa_controller.cpp 
+		  $(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_controller
+
+        pessoa_control_nowarn.$(MEXSUFFIX): pessoa_control_nowarn.cpp 
+		  $(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_control_nowarn
+
+
