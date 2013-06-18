@@ -39,7 +39,7 @@
  * 		No details yet.
  */
 
-#include "ShortestPath.h"
+#include "ShortestPath.hh"
 
 
 //! ShortestPath Constructor.
@@ -95,7 +95,7 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
 	std::vector<int> vars_index = getVarsIndex(system);
 
 	if (vars_index.size() != (2 * no_state_vars + no_input_vars)){
-		printf("***Critical error! Number of states/inputs mismatch! Revise!\n");
+		printf("***Critical error! Number of states/inputs mismatch! Revise! (%d:%d)\n", vars_index.size(), (2 * no_state_vars + no_input_vars));
 		exit(-1);
 	}
 
@@ -260,6 +260,15 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 				}
 			}
 		}
+	}
+
+	// De-Allocate memory for the vectors.
+	if (!system_analyzed){
+		delete bdd_x;
+		delete bdd_u;
+		delete bdd_x_;
+		delete add_x;
+		delete add_x_;
 	}
 
 #ifdef ENABLE_TIME_PROFILING
@@ -435,6 +444,7 @@ void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_var
 	}
 } /* createVariables */
 
+
 //! Creates all the variables x, u and x_ given the corresponding indexes.
 /**
  * This method works under the assumption that no reordering has been applied to the ADD/BDD to which the indexes correspond.
@@ -450,8 +460,38 @@ void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_var
  * @param vars_index contains all available indexes.
  * @param no_state_vars is the number of state variables (or x) variables being used.
  * @param no_input_vars is the number of input variables (or u) variables being used.
- * @param x is used to return the created x variables.
- * @param x_ is used to return the created x_ variables.
+ * @param x is used to return the created x variables as an BDD.
+ * @param x_ is used to return the created x_ variables as an BDD.
+ * @see createVariables
+ */
+inline void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<BDD> *x, std::vector<BDD> *x_){
+	int i;
+
+	// Create the Variables.
+	for (i = 0; i < no_state_vars; i++){
+//		printf("x: %d - x': %d\n", vars_index[i], vars_index[i + (no_state_vars + no_input_vars)]);
+		(*x).push_back(mgr_cpp->bddVar(vars_index[i]));
+		(*x_).push_back(mgr_cpp->bddVar(vars_index[i + (no_state_vars + no_input_vars)]));
+	}
+}
+
+//! Creates all the variables x and x_ given the corresponding indexes.
+/**
+ * This method works under the assumption that no reordering has been applied to the ADD/BDD to which the indexes correspond.
+ * Furthermore it assumes the following order: x-->u-->x_. So:\n
+ *
+ * - the index for @param x is from 0 to @param no_state_vars - 1
+ * - the index for @param x_ is from @param no_state_vars + @param no_input_vars to 2 *@param no_state_vars + @param no_input_vars -1 \n
+ *
+ * The result is returned using the pointers to the vectors @param x, @param u and @param x_.
+ *
+ * __Imporatant Notice__: The memory for the vectors @param x, @param u and @param x_ is assumed to be already allocated.
+ *
+ * @param vars_index contains all available indexes.
+ * @param no_state_vars is the number of state variables (or x) variables being used.
+ * @param no_input_vars is the number of input variables (or u) variables being used.
+ * @param x is used to return the created x variables as an ADD.
+ * @param x_ is used to return the created x_ variables as an ADD.
  * @see createVariables
  */
 void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<ADD> *x, std::vector<ADD> *x_){
@@ -665,9 +705,185 @@ ADD ShortestPath::createTargetSet(BDD *system, int no_states, int no_inputs, std
 } /* createTargetSet */
 
 
-//! To be implemented. (if needed).
-void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, ADD *W, ADD *APSP_W, ADD *PA_W){
+//! Swaps the index of x and x' (or y) of the BDD DD.
+inline void ShortestPath::swapXandX_(BDD *DD, std::vector<ADD> *x, std::vector<ADD> *x_){
 
+	int permute[mgr_cpp->ReadSize()];
+	int i;
+	int k = 0;
+	int from, to;
+
+	/* Important: This algorithm works only if x proceeds x_. */
+	to = (*x)[0].getNode()->index;
+	for (i = 0; i < to; i++){
+		permute[i] = mgr_cpp->ReadInvPerm(i);
+	}
+
+	k = 0;
+	from = to;
+	to   = (*x)[0].getNode()->index + (*x).size();
+	for (i = from; i < to; i++){
+		permute[i] = (*x_)[k].getNode()->index;
+		k++;
+	}
+
+	from = to;
+	to   = (*x_)[0].getNode()->index;
+	for (i = from; i < to; i++){
+		permute[i] = mgr_cpp->ReadInvPerm(i);
+	}
+
+	k = 0;
+	from = to;
+	to   = (*x_)[0].getNode()->index + (*x_).size();
+	for (i = from; i < to; i++){
+		permute[i] = (*x)[k].getNode()->index;
+		k++;
+	}
+
+//	for (i = 0; i < mgr_cpp->ReadSize(); i++)
+//		printf("::%d\n", permute[i]);
+
+	// Apply Permutation
+	*DD = DD->Permute(permute);
+//    DdNode *result = Cudd_bddPermute(mgr, DD->getNode(), permute);
+//    *DD = BDD(*mgr_cpp, result);
+}/* permute */
+
+
+//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
+/**
+ * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
+ * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
+ * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
+ *
+ * __Important Notice__:
+ * - Memory should have been already allocated for the results (@param APSP_W and @param PA_W).
+ * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
+ * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (@param PA).
+ *
+ * @param APSP is the ADD containing the all-pairs shortest path values.
+ * @param PA is the ADD containing the pointer array of the APSP.
+ * @param W	is the desired target set given as a BDD.
+ * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
+ * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
+ *        together with the PA ADD.
+ * @see   FloydWarshall, APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W)
+ */
+void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W){
+
+	printf("ShortestPath::APtoSetSP\n");
+
+#ifdef ENABLE_TIME_PROFILING
+	long long start_time = get_usec();
+#endif
+	int i;
+	// The x and y variables of the system.
+	std::vector<ADD> *add_x;
+	std::vector<ADD> *add_y;
+	// BDD system variables
+	std::vector<BDD> *bdd_x;
+	std::vector<BDD> *bdd_y;
+	// The total number of x and y variables. (or x and x').
+	int no_states;
+
+
+	if (!system_analyzed){
+
+		// Allocate Memory for the vectors.
+		add_x = new std::vector<ADD>;
+		add_y = new std::vector<ADD>;
+		bdd_x = new std::vector<BDD>;
+		bdd_y = new std::vector<BDD>;
+
+		// Get the index of the variables of the BDD, representing the system.
+		std::vector<int> vars_index = getVarsIndex(APSP);
+
+		// Create the variables of the System.
+		createVariables(vars_index, vars_index.size()/2, 0, add_x, add_y);
+		createVariables(vars_index, vars_index.size()/2, 0, bdd_x, bdd_y);
+
+		// Number of x and y variables.
+		no_states = vars_index.size();	// not optimal since it is in the power of 2.
+										// Example. If no states 4 then state vars 3.
+										// which means no_states = 2*3 = 6 => 2 extra states!!
+	}
+	else{
+
+		// x and y variables.
+		add_x = &this->add_x;
+		add_y = &this->add_x_;
+
+		bdd_x = &this->bdd_x;
+		bdd_y = &this->bdd_x_;
+
+		// Number of x and y variables.
+		no_states = this->no_states;  // this is optimal
+	}
+
+	/* The target set is given a BDD with x variables. We need to permute the x variables with x'. */
+	swapXandX_(W, add_x, add_y);
+
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	nodes_bdd.push_back(*W);
+	FILE *outfile;
+	outfile = fopen("W_swapped.dot", "w");
+	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+
+	/* Find the shortest path and the pointer array, given the target set W. */
+	BDD system_rstct_x, bdd_minterm;
+	ADD add_minterm;
+	ADD op1 = mgr_cpp->plusInfinity();
+	ADD P1  = mgr_cpp->addZero();
+	ADD op2;
+	ADD P2;
+	DdNode *result[2];
+
+	/* Iterate over all y (=x') states. */
+	// TODO: Check ddPrintMintermAux() in cuddUtil.c
+	// it might a better/faster implementation.
+	for (i = 0; i < no_states; i++){
+
+		// Create the x minterm.
+		bdd_minterm = createMinterm(bdd_y,i);
+
+		// not a valid input.
+		if ( W->Restrict(bdd_minterm).IsZero()){
+			continue;
+		}
+		// valid input
+		else{
+//			printf(":-:%d\n", i);
+			add_minterm = createMinterm(add_y, i);
+
+			op2 = APSP->Cofactor(add_minterm);
+			P2  = PA->Cofactor(add_minterm);
+			Cudd_addApplyMin2(op1.getNode(),op2.getNode(),P1.getNode(),P2.getNode(),result);
+			op1 = ADD(*mgr_cpp, result[0]);
+			P1  = ADD(*mgr_cpp, result[1]);
+		}
+	}
+
+	/* Get the result */
+	*APSP_W = ADD(*mgr_cpp, result[0]);
+	*PA_W   = ADD(*mgr_cpp, result[1]);
+
+	// De-Allocate memory for the vectors.
+	if (!system_analyzed){
+		delete bdd_x;
+		delete bdd_y;
+		delete add_x;
+		delete add_y;
+	}
+
+#ifdef ENABLE_TIME_PROFILING
+	/* Print execution time. */
+	printf("ShortestPath::APtoSetSP: Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
+#endif
 
 } /* APtoSetSP */
 
@@ -688,7 +904,7 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, ADD *W, ADD *APSP_W, ADD *PA_W)
  * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
  * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
  *        together with the PA ADD.
- * @see   FloydWarshall
+ * @see   FloydWarshall, APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
  */
 void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W){
 
@@ -773,6 +989,73 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W
 
 
 } /* APtoSetSP */
+
+
+
+//! Dumps the argument BDD to file.
+/** Dumping is done through Dddmp_cuddBddArrayStore. A dummy array of 1 BDD root is used for this purpose.
+ *
+ * @param f is the BDD to be dumped.
+ * @param fname is the file name, containing the dumped BDD.
+ * @param ddname is the DD name (or NULL).
+ * @param varnames is the array of variable names (or NULL)
+ * @param auxids is the array of converted var ids.
+ * @param mode is the storing mode selector.
+ * @param varinfo is used for extra info for the variables in text mode.
+ * @param fp is the file pointer to the store file
+ * @return returns whether the dump was successful or not.
+ * @see dddmp.h in the CUDD Library for more info.
+ */
+bool ShortestPath::Dddmp_cuddStore(BDD *f, char *fname, char *ddname, char **varnames, int *auxids, int mode, Dddmp_VarInfoType varinfo, FILE *fp){
+	bool ok;
+
+	DdNode *fn = f->getNode();
+
+	ok = Dddmp_cuddBddStore(mgr_cpp->getManager(), ddname, fn, varnames, auxids, mode, varinfo, fname, fp);
+
+	if (ok) return true;
+	else return false;
+}
+
+
+//! Dumps the argument ADD to file.
+/** Dumping is done through Dddmp_cuddBddArrayStore. A dummy array of 1 BDD root is used for this purpose.
+ *
+ * @param f is the ADD to be dumped.
+ * @param fname is the file name, containing the dumped BDD.
+ * @param ddname is the DD name (or NULL).
+ * @param varnames is the array of variable names (or NULL)
+ * @param auxids is the array of converted var ids.
+ * @param mode is the storing mode selector.
+ * @param varinfo is used for extra info for the variables in text mode.
+ * @param fp is the file pointer to the store file
+ * @return returns whether the dump was successful or not.
+ * @see dddmp.h in the CUDD Library for more info.
+ */
+bool ShortestPath::Dddmp_cuddStore(ADD *f, char *fname, char *ddname, char **varnames, int *auxids, int mode, Dddmp_VarInfoType varinfo, FILE *fp){
+	bool ok;
+
+	DdNode *fn = f->getNode();
+
+	ok = Dddmp_cuddAddStore(mgr_cpp->getManager(), ddname, fn, varnames, auxids, mode, varinfo, fname, fp);
+
+	if (ok) return true;
+	else return false;
+}
+
+
+//BDD ShortestPath::Dddmp_cuddBDDLoad(char *file, Dddmp_VarMatchType varMatchMode, char **varmatchnames, int *varmatchauxids, int *varcomposeids, int mode, FILE *fp){
+//	/* Create the C++ objects. */
+//	return BDD(mgr_cpp, Dddmp_cuddBddLoad(mgr, varMatchMode, varmatchnames, varmatchauxids, varcomposeids, mode, file, fp));
+//}
+//
+//
+//ADD ShortestPath::Dddmp_cuddADDLoad(char *file, Dddmp_VarMatchType varMatchMode, char **varmatchnames, int *varmatchauxids, int *varcomposeids, int mode, FILE *fp){
+//	/* Create the C++ objects. */
+//	return ADD(mgr_cpp, Dddmp_cuddBddLoad(mgr, varMatchMode, varmatchnames, varmatchauxids, varcomposeids, mode, file, fp));
+//}
+
+
 
 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
 /**
@@ -1389,14 +1672,15 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNo
 //    	printf("Res! \n");
     	Result[0] = res;
     	if(cuddIsConstant(Pf) && cuddIsConstant(Pg)){
+//    		printf("Res. Is constant! \n");
     		if(cuddV(f) < cuddV(g)){
     			Result[1] = Pf;
     		}
     		else{
     			Result[1] = Pg;
     		}
+    		return;
     	}
-    	return;
     }
 
 

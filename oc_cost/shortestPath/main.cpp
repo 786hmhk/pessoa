@@ -40,8 +40,25 @@
 
 #include "main.hh"
 
-#define U_SPACING 100
+// Define if you want some space between the variables.
+#define U_SPACING  100
 #define X__SPACING 1000
+
+//
+#ifdef U_SPACING
+	#if (U_SPACING > 0)
+		#define HAS_U_SPACING
+	#endif
+#endif
+//
+#ifdef X__SPACING
+	#if (X__SPACING > 0)
+		#define HAS_X__SPACING
+	#endif
+#endif
+
+
+
 
 
 int main(int argc, char* argv[]) {
@@ -69,6 +86,8 @@ void example_DSP(){
 
 	// Initialize the Manager.
 	Cudd mgr(0, 0);
+	// Set background
+	mgr.SetBackground(mgr.plusInfinity());
 
 	// Shortest Path Object
 //	ShortestPath sp(&mgr);
@@ -80,7 +99,7 @@ void example_DSP(){
 	// ADD representing the Cost Adjacency Matrix
 	ADD AG;
 	// ADD of the Target Set
-	ADD W;
+	BDD W;
 
 
 
@@ -160,7 +179,7 @@ void example_DSP(){
 	nodes_bdd.clear();
 
 	/* Get the cost of each transition of the system, described by an ADD. x -> R. */
-	get_S_cost_x(&mgr, &C, no_states, state_costs);
+	get_S_cost_x(&mgr, &C, no_states, no_inputs, state_costs);
 
 	// Create .dot file
 	std::vector<ADD> nodes_add;
@@ -174,8 +193,8 @@ void example_DSP(){
 	long long start_time = get_usec();
 
 	/* Create the Shortest Path Object */
-	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
-//	ShortestPath sp(&mgr);
+//	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
+	ShortestPath sp(&mgr);
 
 	/* Create the Cost Adjacency Matrix */
 	AG = sp.createCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
@@ -205,10 +224,24 @@ void example_DSP(){
 	fclose(outfile);
 	nodes_add.clear();
 
+
+	/* Create the Target set W. */
+	W = getTargetSet(&mgr, no_states, target_set);
+	BDD W_normal = W;
+
+	// Create .dot file
+	nodes_bdd.push_back(W);
+	outfile = fopen("System_TargetSet_W.dot", "w");
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+
 	/* Find the All-pair Shortest Path to  a Set. */
 	ADD APSP_W;
 	ADD PA_W;
-	sp.APtoSetSP(&APSP, &PA, target_set, &APSP_W, &PA_W);
+	sp.APtoSetSP(&APSP, &PA, &W, &APSP_W, &PA_W);
+//	sp.APtoSetSP(&APSP, &PA, target_set, &APSP_W, &PA_W);
 
 	// Create .dot file
 	nodes_add.push_back(APSP_W);
@@ -223,6 +256,31 @@ void example_DSP(){
 	fclose(outfile);
 	nodes_add.clear();
 
+
+	/* Storing results into .bdd files. */
+	printf("Storing outcome into .bdd and .add files.\n");
+	bool stored;
+
+	// BDD's
+	stored = sp.Dddmp_cuddStore(&S, (char *)"System_xux.bdd");
+	if(!stored) printf("Error saving ADD into file!\n");
+	stored = sp.Dddmp_cuddStore(&W_normal, (char *)"System_TargetSet_W.bdd");
+	if(!stored) printf("Error saving ADD into file!\n");
+	// ADD's
+	stored = sp.Dddmp_cuddStore(&C, (char *)"System_Cost_x.add");
+	if(!stored) printf("Error saving ADD into file!\n");
+	stored = sp.Dddmp_cuddStore(&APSP, (char *)"APSP.add");
+	if(!stored) printf("Error saving ADD into file!\n");
+	stored = sp.Dddmp_cuddStore(&APSP_W, (char *)"APSP_W.add");
+	if(!stored) printf("Error saving ADD into file!\n");
+	stored = sp.Dddmp_cuddStore(&PA, (char *)"PA.add");
+	if(!stored) printf("Error saving ADD into file!\n");
+	stored = sp.Dddmp_cuddStore(&PA_W, (char *)"PA_W.add");
+	if(!stored) printf("Error saving ADD into file!\n");
+
+
+	// Memory De-allocation
+	delete[] state_costs;
 
 	printf("\n***Deterministic Shortest Path Example END. Execution time: %ds (%dms) (%dus)***\n", (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 }
@@ -246,21 +304,39 @@ void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs){
 	x_ = new BDD[no_state_vars];
 
 	// Create the variables
+#ifdef HAS_X__SPACING
 	for (i = 0; i < no_state_vars; i++){
 		x[i]  = mgr->bddVar(i);
 		x_[i] = mgr->bddVar(i + X__SPACING);
 	}
+#else
+	for (i = 0; i < no_state_vars; i++){
+		x[i]  = mgr->bddVar(i);
+		x_[i] = mgr->bddVar(i + (no_state_vars + no_input_vars));
+	}
+#endif
 
+#ifdef HAS_U_SPACING
 	for (i = 0; i < no_input_vars; i++){
 		u[i]  = mgr->bddVar(i + U_SPACING);
 	}
+#else
+	for (i = 0; i < no_input_vars; i++){
+		u[i]  = mgr->bddVar(i + no_state_vars);
+	}
+#endif
 
 	// Create the system
 	*T = SYSTEM_TRANSITIONS;
+
+	// Memory De-allocation
+	delete[] x;
+	delete[] u;
+	delete[] x_;
 }
 
 /**/
-void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs){
+void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int no_inputs, int *costs){
 
 	ADD *x_, *constants;
 
@@ -274,14 +350,18 @@ void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs){
 	constants = new ADD[no_states];
 
 
-	// Set background (if not set) :P
-	mgr->SetBackground(mgr->plusInfinity());
-
-
+#ifdef HAS_X__SPACING
 	for (i = 0; i < no_state_vars; i++){
 		x_[i]  = mgr->addVar(i + X__SPACING);
 		x_[i]  = x_[i].Ite(one, zero);
 	}
+#else
+	int no_input_vars = no_inputs/2 + no_inputs % 2;
+	for (i = 0; i < no_state_vars; i++){
+		x_[i]  = mgr->addVar(i + (no_state_vars + no_input_vars));
+		x_[i]  = x_[i].Ite(one, zero);
+	}
+#endif
 
 
 	// Get the costs
@@ -320,6 +400,10 @@ void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs){
 		temp = minterm.Ite(constants[i], *C);
 		*C = temp;
 	}
+
+	// Memory De-allocation
+	delete[] x_;
+	delete[] constants;
 }
 
 /**/
@@ -376,6 +460,60 @@ BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_state_var, int no_
 
 	return transition;
 }
+
+
+/* Important: The target set is given as a function of x. */
+BDD getTargetSet(Cudd *mgr, int no_states, std::vector<int> target_set){
+
+	//
+	BDD minterm;
+	BDD one  = mgr->bddOne();
+	BDD zero = mgr->bddZero();
+	BDD cofactor;
+	BDD temp;
+
+	unsigned int i;
+	int j;
+	int node;
+
+	// Get the number of variables
+	int no_state_vars = no_states/2 + no_states % 2;
+
+	BDD x[no_state_vars];
+
+	// Create the variables
+	for (i = 0; i < (unsigned int)no_state_vars; i++){
+		x[i]  = mgr->bddVar(i);
+	}
+
+
+	/* Create the target set */
+	cofactor = zero;
+
+	for (i = 0; i < target_set.size(); i++){
+
+		minterm = one;
+		node    = target_set[i];
+
+		for (j = no_state_vars - 1; j >=0; j--){
+			if (node & 0x01){
+				temp = x[j].Ite(minterm, zero);
+			}
+			else{
+				// row
+				temp = x[j].Ite(zero, minterm);
+			}
+			minterm = temp;
+			node >>= 1;
+		}
+
+		// Create the constant node.
+		temp     = minterm.Ite(one, cofactor);
+		cofactor = temp;
+	}
+
+	return cofactor;
+} /* createTargetSet */
 
 
 long long get_usec(void){

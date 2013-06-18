@@ -54,7 +54,7 @@
 //#include "util.h"
 
 // Local
-#include "ShortestPath.h"
+#include "ShortestPath.hh"
 
 #define TRANSITION(xx,uu,xx_) 	BDD_transition(mgr,x,u,x_,no_state_vars,no_input_vars,xx,uu,xx_)
 
@@ -64,7 +64,8 @@ void example_DSP();
 
 void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs);
 BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_states, int no_inputs, int xi, int ui, int xi_);
-void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int *costs);
+void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int no_inputs, int *costs);
+BDD getTargetSet(Cudd *mgr, int no_states, std::vector<int> target_set);
 long long get_usec(void);
 
 #endif /* MAIN_H_ */
