@@ -33,13 +33,16 @@
  *
  * @section DESCRIPTION
  *
- * Contains main mex function to implement sp.
+ * Contains...
  *
  * 		No details yet.
  */
 
-#ifndef SHORTESTPATHMEX_HH_
-#define SHORTESTPATHMEX_HH_
+#ifndef PESSOACOST2ADD_HH_
+#define PESSOACOST2ADD_HH_
+
+
+
 
 
 #include "mex.h"
@@ -54,10 +57,13 @@
 
 // CUDD Library
 #include "cuddObj.hh"
+#include "dddmp.h"   // for storing DD into files.
 // Pessoa Header
 //#include "pessoa.h"
 //
-#include "ShortestPath.hh"
+//#include "ShortestPath.hh"
+
+//#define WAITBAR_ENABLE
 
 // TODO: delete this when used together with the Pessoa project.
 // Add "pessoa.h" instead.
@@ -73,27 +79,47 @@ typedef struct t_sv{
 	double* nxbits;
 }s_vector;
 
-
-#define FILE_EXISTS(file) 	if ((file)==NULL) \
-								{ \
-									mexEvalString("warndlg('Symbolic model file not found!','Pessoa Error')");\
-									mexErrMsgTxt("\nERROR: Symbolic model file not found!.\n"); \
-								} \
-								else \
-								{ \
-									fclose((file));\
-								}
-
-
-void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]);
-
 /*
  *
  */
-class shortestPathMex {
+class pessoa_cost2add {
+private:
+
+	int verbose;
+	// Minimum/Maximum value of the state space. Needed to under-approximate
+	// the state space if needed.
+	double *wmin, *wmax;
+	// This structure contains the parameters used in the construction of the symbolic abstraction.
+	s_vector params_symb;
+	// holds the MATLAB structure variable params_symb.
+	mxArray *psv;
+	// holds the MATLAB variable nbatch.
+	long nbatch;
+	// The name of the .add holding the States costs.
+	char *SysStateCostADD_name;
+#ifdef WAITBAR_ENABLE
+	double totloops;
+#endif
+
+	// CUDD Manager.
+	Cudd *mgr;
+	// ADD holding the System's State Costs
+	ADD sys_state_cost;
+
+
+	bool addBatchToADD(double *array, double *state_cost_array, s_vector* params_symb, long nbatch, int nnm);
+
+
 public:
-	shortestPathMex();
-	virtual ~shortestPathMex();
+	pessoa_cost2add(mxArray **plhs, const mxArray **prhs, Cudd *mgr, int verbose);
+	virtual ~pessoa_cost2add();
+
+	void createSysStatesCost();
+
+	ADD getSysStateCost();
+
+	bool dumpSysStateCost();
+	void dumpSysStateCostDot();
 };
 
 
@@ -101,4 +127,7 @@ public:
 
 
 
-#endif /* SHORTESTPATHMEX_HH_ */
+
+
+
+#endif /* PESSOACOST2ADD_HH_ */

@@ -14,13 +14,17 @@ MEXFLAGS   = -cxx CC='$(CXX)' CXX='$(CXX)' LD='$(CXX)' CXXFLAGS='$(CXXFLAGS)'
 COL_ON  = \033[0;32m
 COL_OFF = \033[m
 
-all: oc_sp_mex
+all: oc_sp_mex pessoa_cost2add.$(MEXSUFFIX)
 
-oc_sp_mex: shortestPathMex.$(MEXSUFFIX) 
+oc_sp_mex: shortestPathMex.$(MEXSUFFIX)
 
 shortestPathMex.$(MEXSUFFIX): shortestPathMex.cpp $(SP_DIR)/cuddObj.cpp $(SP_DIR)/ShortestPath.cpp
 	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/shortestPathMex
 	@echo "${COL_ON}\n Compilation Successful!\n Add $(CURDIR) into your MATLAB path.\n ${COL_OFF}"
+
+pessoa_cost2add.$(MEXSUFFIX): pessoa_cost2add.cpp $(SP_DIR)/src/cuddObj.cc
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_cost2add
+	@echo "${COL_ON}\n Compilation Successful!\n${COL_OFF}"
 	
 
 RM = rm -rf
@@ -31,4 +35,4 @@ clean:
 distclean : clean
 
 run:
-	@cd ../bin/ && $(MATLABHOME)/bin/matlab -nosplash -nodesktop -r shortestPath
+	@cd ../bin/ && $(MATLABHOME)/bin/matlab -nosplash -nodesktop -r tb_oc_sp
