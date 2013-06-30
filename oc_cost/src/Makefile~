@@ -1,0 +1,30 @@
+MEXSUFFIX  = mex
+
+SP_DIR     = lib
+
+MEX        = /home/tanasaki/Programs/MATLAB/bin/mex
+CXX        = g++
+CXXFLAGS   = -O0 -g3 -Wall -c -mtune=native -malign-double -DHAVE_IEEE_754 -DBSD -fPIC 
+OBJFILES   = $(CUDD_DIR)/util/datalimit.o $(CUDD_DIR)/util/cpu_time.o $(CUDD_DIR)/util/safe_mem.o
+CFLAGS     = -L$(MATLABHOME)/bin/$(SYSTEMEX) -L$(CUDD_DIR)/dddmp -L$(CUDD_DIR)/epd -L$(CUDD_DIR)/util -L$(CUDD_DIR)/st -L$(CUDD_DIR)/mtr -L$(CUDD_DIR)/cudd
+LIBS       = -lmex -lmx -lmat -lcudd -lmtr -lst -lutil -lepd -ldddmp -lm
+INCLUDE    = -I$(MATLABHOME)/extern/include -I$(CUDD_DIR)/include -I$(SP_DIR)
+MEXFLAGS   = -cxx CC='$(CXX)' CXX='$(CXX)' LD='$(CXX)' CXXFLAGS='$(CXXFLAGS)'
+
+
+all: oc_sp_mex
+
+oc_sp_mex: shortestPathMex.$(MEXSUFFIX) 
+
+shortestPathMex.$(MEXSUFFIX): shortestPathMex.cpp $(SP_DIR)/cuddObj.cpp $(SP_DIR)/ShortestPath.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/shortestPathMex
+	@echo "\nCompilation Successful!\nAdd $(CURDIR) into your MATLAB path.\n"
+	
+
+RM = rm -rf
+clean:
+	-@echo Cleaning oc_sp_mex Project ...
+	-@cd bin && $(RM) shortestPathMex.* oc_sp_cpp *.dot *.bdd *.add tb_sys_info.txt test_symb.mat
+
+run:
+	@cd ../bin/ && matlab -nosplash -nodesktop -r shortestPath

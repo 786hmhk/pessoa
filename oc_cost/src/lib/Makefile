@@ -1,0 +1,62 @@
+
+
+.SUFFIXES: .o .cpp
+
+
+COL_ON  = \033[0;32m
+COL_OFF = \033[m
+
+CXX	 = g++
+CXXFLAGS = -g -O3 -Wall -mtune=native -malign-double -DHAVE_IEEE_754 -DBSD
+LDFLAGS	 =
+
+
+INCLUDE  = $(CUDD_DIR)/include
+
+
+SRC = main.cpp ShortestPath.cpp cuddObj.cpp
+HDR = main.hh ShortestPath.hh
+OBJ = $(SRC:.cpp=.o)
+
+#LIBS := -lcudd -lm -lepd -lmtr -lst -lutil
+LIBS = $(CUDD_DIR)/cudd/libcudd.a $(CUDD_DIR)/mtr/libmtr.a \
+	$(CUDD_DIR)/st/libst.a $(CUDD_DIR)/util/libutil.a $(CUDD_DIR)/epd/libepd.a $(CUDD_DIR)/dddmp/libdddmp.a
+
+
+
+
+
+$(OBJ): $(SRC) $(HDR)
+
+.cpp.o: 
+	$(CXX) -c  $< -I$(INCLUDE) $(CXXFLAGS) $(DDDEBUG)
+
+all: oc_sp_cpp
+
+oc_sp_cpp: $(SRC) $(OBJ) $(HDR)
+	$(CXX) $(CXXFLAGS) $(LDFLAGS) -o Debug/$@ $(OBJ) $(LIBS) -lm
+	@echo "${COL_ON}\n\n Compilation Success!\n Executable of the oc_sp_cpp example is located at the Debug folder. \n${COL_OFF}"
+
+
+run:
+	@echo "${COL_ON}Running oc_sp_cpp...\n${COL_OFF}"
+	@cd Debug && ./oc_sp_cpp
+
+##
+
+doc:
+	@doxygen documentation.doxygen.Doxyfile > /dev/null 2>&1
+
+
+
+RM = rm -rf
+clean:
+	-@echo "${COL_ON}Cleaning oc_sp_cpp Project ... ${COL_OFF}"
+	-@$(RM) *.o oc_sp_cpp *.dot *.bdd *.add tb_sys_info.txt
+	-@cd Debug && $(RM) *.o oc_sp_cpp *.dot *.bdd *.add tb_sys_info.txt
+	
+
+distclean : clean
+	-@$(RM) doc
+
+.PHONY: all clean distclean

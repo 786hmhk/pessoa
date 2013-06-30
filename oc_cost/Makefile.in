@@ -1,0 +1,207 @@
+###########################################
+# package = @PACKAGE@
+# version = @VERSION@
+###########################################
+
+
+MATLAB	       = @MATLAB_DIR@
+SYSTEMEX       = @MATLAB_MEXSYSTEM@
+LDFLAGS_LIB    = -arch @R_PLATFORM_ARCH@
+
+COL_ON  = \033[0;32m
+COL_OFF = \033[m
+
+# Beginning of the configuration section. These symbol definitions can
+# be overridden from the command line.
+
+# C++ compiler
+CXX	= @CXX@
+
+# Specific options for compilation of C++ files.
+CXXFLAGS = 
+# Stricter standard conformance for g++.
+#CXXFLAGS = -std=c++98
+# For Sun CC version 5, this invokes compatibility mode.
+#CXXFLAGS = -compat
+# On some versions of UP-UX, it is necessary to pass the option +a1
+# to CC for the C++ test program to compile successfully.
+#CXXFLAGS = +a1
+
+# C compiler used for all targets except optimize_dec, which always uses cc.
+CC = @CC@
+
+# On some machines ranlib is either non-existent or redundant.
+# Use the following definition if your machine has ranlib and you think
+# it is needed.
+RANLIB	= @RANLIB@
+# Use the following definition if your machine either does not have
+# ranlib (e.g., SUN running solaris) or can do without it (e.g., DEC Alpha).
+#RANLIB	= :
+
+# Use ICFLAGS to specify machine-independent compilation flags.
+# These two are typical settings for optimized code with gcc.
+#ICFLAGS	= -g -O3 -Wall
+ICFLAGS = @CUDD_ICFLAGS@
+
+
+# Use XCFLAGS to specify machine-dependent compilation flags.
+# For some platforms no special flags are needed.
+#XCFLAGS	= -DHAVE_IEEE_754 -DBSD
+XCFLAGS = @CUDD_XCFLAGS@
+
+
+
+
+# Define the level of self-checking and verbosity of the CUDD package.
+#DDDEBUG = -DDD_DEBUG -DDD_VERBOSE -DDD_STATS -DDD_CACHE_PROFILE -DDD_UNIQUE_PROFILE -DDD_COUNT
+DDDEBUG	=
+
+# Define the level of self-checking and verbosity of the MTR package.
+#MTRDEBUG = -DMTR_DEBUG
+MTRDEBUG =
+
+# Loader options.
+LDFLAGS	=
+# This may produce faster code on the DECstations.
+#LDFLAGS	= -jmpopt -Olimit 1000
+# This may be necessary under some old versions of Linux.
+#LDFLAGS	= -static
+# This normally makes the program faster on the DEC Alphas.
+#LDFLAGS	= -non_shared -om
+# This is for 32-bit pointers on the DEC Alphas.
+#LDFLAGS	= -non_shared -om -taso
+#LDFLAGS	= -non_shared -taso
+
+# Define PURE as purify to link with purify.
+# Define PURE as quantify to link with quantify.
+# Remember to compile with -g if you want line-by-line info with quantify.
+PURE =
+#PURE	= purify
+#PURE	= quantify
+
+# Define EXE as .exe for MS-DOS and derivatives.  Not required by recent
+# versions of cygwin.
+EXE	=
+#EXE	= .exe
+
+# End of the configuration section.
+#---------------------------------------------------------------------------
+
+MFLAG      = -DMNEMOSYNE
+MNEMLIB	   = ../mnemosyne/libmnem.a
+
+SRC_DIR    = src
+DOC_DIR    = doc
+
+CUDDV      = 2.5.0
+CUDD_DIR   = cudd-$(CUDDV)
+CUDD_IDIR  = $(CUDD_DIR)/include
+DDWDIR	   = .
+IDIR	   = $(DDWDIR)/include
+INCLUDE    = -I$(IDIR)
+
+CUDD_BDIRS = cudd dddmp mtr st util epd
+DIRS	= 
+
+#------------------------------------------------------------------------
+
+.PHONY : optimize_dec
+.PHONY : libobj
+.PHONY : del_cudd_setup
+.PHONY : all
+.PHONY : clean
+.PHONY : distclean
+.PHONY : doc
+#TODO: add in configure.ac the PHONY
+
+
+default: oc_sp_mex
+
+oc_sp_mex: cudd objlib
+	-@echo "\n\n${COL_ON}Building oc_sp_mex Project ... ${COL_OFF}" 
+	@cd $(SRC_DIR) && $(MAKE) $@ CUDD_DIR="../$(CUDD_DIR)" MATLABHOME="$(MATLAB)"
+
+oc_sp_cpp: cudd objlib
+	-@echo "$\n\n{COL_ON}Building oc_sp_cpp Project ... ${COL_OFF}"
+	@cd $(SRC_DIR)/lib && $(MAKE) $@ CUDD_DIR="../../$(CUDD_DIR)"
+
+
+cudd: setup_cudd
+	-@echo "\n\n${COL_ON}Building CUDD Library $(CUDDV) ... ${COL_OFF}"
+	@cd $(CUDD_DIR);\
+	for dir in $(CUDD_BDIRS); do \
+		(cd $$dir; \
+		echo Making $$dir ...; \
+		make CC=$(CC) RANLIB=$(RANLIB) MFLAG= MNEMLIB= ICFLAGS="$(ICFLAGS)" XCFLAGS="$(XCFLAGS)" DDDEBUG="$(DDDEBUG)" MTRDEBUG="$(MTRDEBUG)" LDFLAGS="$(LDFLAGS)" PURE="$(PURE)" EXE="$(EXE)" )\
+	done
+
+setup_cudd: del_cudd_setup
+	@mkdir $(CUDD_IDIR)
+	@cd $(CUDD_IDIR) ;\
+	ln -s ../cudd/cudd.h . ;\
+	ln -s ../cudd/cuddInt.h .;\
+	ln -s ../epd/epd.h .;\
+	ln -s ../dddmp/dddmp.h .;\
+	ln -s ../mtr/mtr.h .;\
+	ln -s ../obj/cuddObj.hh .;\
+	ln -s ../st/st.h .;\
+	ln -s ../util/util.h .;\
+	ln -s ../mnemosyne/mnemosyne.h .;\
+
+del_cudd_setup:
+	-@echo "${COL_ON}Deleting include folder ... ${COL_OFF}"
+	@-rm -rf  $(CUDD_IDIR) >/dev/null 2>&1
+
+all: oc_sp_mex oc_sp_cpp
+
+
+objlib: cudd
+	@(cd $(CUDD_DIR)/obj; \
+	echo Making obj ...; \
+	make CXX=$(CXX) CXXFLAGS=$(CXXFLAGS) RANLIB=$(RANLIB) MFLAG= MNEMLIB= ICFLAGS="$(ICFLAGS)" XCFLAGS="$(XCFLAGS)" DDDEBUG="$(DDDEBUG)" MTRDEBUG="$(MTRDEBUG)" LDFLAGS="$(LDFLAGS)" PURE="$(PURE)" EXE="$(EXE)" )
+
+
+
+clean:
+	-@echo "${COL_ON}Cleaning CUDD Library ... ${COL_OFF}"
+	@cd $(CUDD_DIR);\
+	for dir in $(CUDD_BDIRS) obj mnemosyne; do	\
+	    (cd $$dir;	\
+	     echo Cleaning $$dir ...; \
+	     make -s clean	) \
+	done
+	@cd $(SRC_DIR) && $(MAKE) $@
+	@cd $(SRC_DIR)/lib && $(MAKE) $@
+
+distclean: del_cudd_setup
+	-@echo "${COL_ON}Cleaning CUDD Library ...${COL_OFF}"
+	@cd $(CUDD_DIR);\
+	for dir in mnemosyne $(CUDD_BDIRS) obj; do	\
+	    (cd $$dir;	\
+	     echo Cleaning $$dir ...; \
+	     make -s EXE="$(EXE)" distclean	) \
+	done
+#	sh ./$(CUDD_DIR)/shutdown.sh
+	@cd $(SRC_DIR) && $(MAKE) $@
+	@cd $(SRC_DIR)/lib && $(MAKE) $@
+
+
+example: all
+	@echo "\n${COL_ON}Running a complete example...${COL_OFF}"
+	@echo "${COL_ON}Creating the .bdd and .add files...${COL_OFF}\n"
+	@cd $(SRC_DIR)/lib && $(MAKE) run
+	@echo "\n${COL_ON}Copying necessary files to run the MATLAB example to bin/ folder...${COL_OFF}"
+	@cp $(SRC_DIR)/lib/Debug/System_xux.bdd $(SRC_DIR)/lib/Debug/System_Cost_x.add $(SRC_DIR)/lib/Debug/System_TargetSet_W.bdd $(SRC_DIR)/lib/Debug/tb_sys_info.txt bin
+	@echo "${COL_ON}Running the MATLAB example... (Make sure you have added the bin/ folder in your MATLAB path.)${COL_OFF}\n"
+	@cd $(SRC_DIR) && $(MAKE) run MATLABHOME="$(MATLAB)"
+
+
+##
+@DOXYGEN_MAIN_MAKEFILE_TARGETS@
+
+##
+package = @PACKAGE@
+version = @VERSION@
+@MAINTAINERS_MAKEFILE_TARGETS@
+
+

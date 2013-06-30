@@ -1,0 +1,5 @@
+autoscan: warning: missing AC_CHECK_FUNCS([gettimeofday]) wanted by: 
+	src/lib/main.cpp:558
+	src/lib/ShortestPath.cpp:1843
+autoscan: warning: missing AC_C_RESTRICT wanted by: 
+	src/lib/ShortestPath.cpp:909
