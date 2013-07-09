@@ -73,6 +73,7 @@ pessoa_cost2add::pessoa_cost2add(mxArray **plhs, const mxArray **prhs, Cudd *mgr
 	// Initiate the Cost ADD
 	sys_state_cost = mgr->background();
 
+	total_add_states = 0;
 }
 
 pessoa_cost2add::~pessoa_cost2add() {
@@ -176,6 +177,9 @@ void pessoa_cost2add::createSysStatesCost(){
 #endif
 	}
 
+	total_add_states = (unsigned int) total_states;
+	mexPrintf("Total ADD states: %d\n", total_add_states);
+
 #ifdef WAITBAR_ENABLE
 	mexEvalString("delete(h);");
 #endif
@@ -212,17 +216,166 @@ bool pessoa_cost2add::addBatchToADD(double *array, double *state_cost_array, s_v
 				minterm = temp;
 				k++;
 				ind >>= 1;
-
 			}
 		}
 
 		// Create the constant node.
 		temp = minterm.Ite(mgr->constant(state_cost_array[j]), sys_state_cost);
 		sys_state_cost = temp;
-
 	}
 
 	return true;
+}
+
+//!
+void pessoa_cost2add::plotSysStateCost(){
+
+	double *tempv, cost = 0;
+
+	long i;
+
+
+	if (params_symb.n != 2) {
+		mexEvalString(
+				"warndlg(Can't plot systems other than 2-D!','Pessoa Error')");
+		return;
+	}
+
+	//
+	mxArray *states_array_mx = mxCreateNumericMatrix(total_add_states, params_symb.n, mxDOUBLE_CLASS, mxREAL);
+	mxArray *cost_array_mx   = mxCreateNumericMatrix(total_add_states, 1, mxDOUBLE_CLASS, mxREAL);
+	double *states_array    = (double *) mxGetData(states_array_mx);
+	double *cost_array      = (double *) mxGetData(cost_array_mx);
+
+	tempv = (double *) malloc(params_symb.n * sizeof(double));
+	for (i = 0; i < params_symb.n; i++)
+		tempv[i] = 0;
+
+
+
+#ifdef WAITBAR_ENABLE // TODO: Have not tested it! Also take care of Memory leakage...
+	int totbits = params_symb.totbits;
+	double *ps_steps, *stotstates;
+	long j;
+	double totstates = 1;
+
+	for (j = 0; j < n; j++)
+		totstates *= params_symb.nume[j] + 1;
+
+	mxArray *pps_steps, *pstotstates;
+	pps_steps     = mxCreateDoubleScalar(0);
+	pstotstates   = mxCreateDoubleScalar(totstates);
+	ps_steps      = (double *) mxGetData(pps_steps);
+	stotstates    = (double *) mxGetData(pstotstates);
+	ps_steps[0]   = 0;
+	stotstates[0] = totstates;
+
+	mexPutVariable("caller", "pstotstates", pstotstates);
+	mexEvalString(
+			"h=waitbar(0,'Plotting set in progress','Name','Pessoa','CreateCancelBtn','global stopbuild;');");
+#endif
+
+	unsigned int ii = 0;
+	while (1) {
+
+		if (isInADD(tempv, &cost)) {
+
+			// Get the state.
+			for (int m = 0; m < params_symb.n; m++){
+				states_array[ii + m*total_add_states] = tempv[m];
+			}
+			// Get the State Cost.
+			cost_array[ii] = cost;
+			ii++;
+		}
+#ifdef WAITBAR_ENABLE
+		ps_steps[0]++;
+#endif
+
+		i = 0;
+		while (i < params_symb.n && (++tempv[i]) > params_symb.nume[i]) {
+			tempv[i++] = 0;
+		}
+		if (i == params_symb.n) {
+			break;
+		}
+
+#ifdef WAITBAR_ENABLE
+		// Used for waitbar
+		mexPutVariable("caller", "ps_steps", pps_steps);
+		mexEvalString("waitbar(ps_steps/pstotstates,h)");
+		if (mexGetVariable("base", "stopbuild") != NULL) // This is a dirty Hack, but I don't know any other way.
+		{
+			mexEvalString("delete(h);");
+			return;
+		}
+#endif
+
+	}
+
+	for (unsigned int kk = ii; kk < total_add_states; kk++){
+		cost_array[kk] = mxGetInf();
+	}
+
+	// Plot the Results.
+	mexPutVariable("caller", "states_array", states_array_mx);
+	mexPutVariable("caller", "cost_array",   cost_array_mx);
+	mexEvalString(	"for ii = 1:length(states_array(:,1)) states_array(ii,:) = params_symb.eta * (states_array(ii,:)' + params_symb.min(params_symb.xoind)); end");
+	mexEvalString("plot3(states_array(:,1), states_array(:,2), cost_array, 'r+')");
+
+//	mexEvalString("states_costs_ = [states_array cost_array]");
+
+#ifdef WAITBAR_ENABLE
+	mexEvalString("delete(h);");
+#endif
+
+	// TODO: FREE MEMORY.
+	mxDestroyArray(states_array_mx);
+	mxDestroyArray(cost_array_mx);
+	free(tempv);
+}
+
+//!
+bool pessoa_cost2add::isInADD(double *array, double *cost){
+	long i;
+	double val_bool = 0;
+	int k;
+
+	ADD temp;
+	ADD minterm, restrct;
+
+	k = 0;
+	minterm = mgr->addOne();
+
+	for (i = 0; i < params_symb.n; i++) {
+		int ind = 1 << ((int) params_symb.nbits[i] - 1);
+		while (ind > 0) {
+			val_bool = (int) array[i] & ind;
+			//
+			if (val_bool) {
+				temp = minterm * mgr->addVar(k);
+
+			} else {
+				temp = minterm * (~mgr->addVar(k));
+			}
+
+			minterm = temp;
+			k++;
+			ind >>= 1;
+		}
+	}
+
+
+	restrct = sys_state_cost.Restrict(minterm);
+
+	if (restrct == mgr->background()){
+		return false;
+	}
+	else{
+		*cost = (double)restrct.getNode()->type.value;
+		return true;
+	}
+	return false;
 }
 
 //! Returns the Ssstem's Cost ADD.
@@ -306,6 +459,10 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 
 	// Create .dot file
 	cost2add.dumpSysStateCostDot();
+
+	// Plot ADD.
+	mexPrintf("Plotting ADD... \n");
+	cost2add.plotSysStateCost();
 
 
 	mexPrintf("\n\n------------------ pessoa_cost2add: TEST END   ----------------- \n");

@@ -97,6 +97,9 @@ private:
 	long nbatch;
 	// The name of the .add holding the States costs.
 	char *SysStateCostADD_name;
+
+	unsigned int total_add_states;
+
 #ifdef WAITBAR_ENABLE
 	double totloops;
 #endif
@@ -108,6 +111,7 @@ private:
 
 
 	bool addBatchToADD(double *array, double *state_cost_array, s_vector* params_symb, long nbatch, int nnm);
+	bool isInADD(double *array, double *cost);
 
 
 public:
@@ -120,6 +124,8 @@ public:
 
 	bool dumpSysStateCost();
 	void dumpSysStateCostDot();
+
+	void plotSysStateCost();
 };
 
 

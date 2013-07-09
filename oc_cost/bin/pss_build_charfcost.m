@@ -48,10 +48,6 @@ for i=1:nbatch
 		state_cost_array = [state_cost_array state_cost];
 	else
 		n=n+1;
-%	else
-%		%beep;
-%		warndlg('Target set output not defined properly! Only use {0,1}.','Pessoa Warning')
-%		error('Target set output not defined properly! Only use {0,1}. Execution stopped.')
 	end
 end
 
@@ -68,6 +64,3 @@ for k=1:nstates
 	end
 end
 
-
-%set_state_array
-%state_cost_array
