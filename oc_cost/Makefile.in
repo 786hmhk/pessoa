@@ -95,7 +95,7 @@ DOC_DIR    = doc
 
 CUDDV      = 2.5.0
 CUDD_DIR   = cudd-$(CUDDV)
-CUDD_IDIR  = $(CUDD_DIR)/include
+CUDD_IDIR  = ../$(CUDD_DIR)/include
 DDWDIR	   = .
 IDIR	   = $(DDWDIR)/include
 INCLUDE    = -I$(IDIR)
