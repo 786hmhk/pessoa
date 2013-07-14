@@ -1,11 +1,11 @@
 /**
  * @file
  * @author Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>
- * @version 0.5
+ * @version 0.61
  *
  * @section LICENSE
  *
- * Copyright (c) <2013>, <TU Delft: Delft University of Technology>
+ * Copyright (c) 2013, TU Delft: Delft University of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -59,7 +59,7 @@
 
 //! Enables or Disables the use of the cudd cache in some operations.
 //#define ENABLE_CACHE
-//#define ENABLE_TIME_PROFILING
+#define ENABLE_TIME_PROFILING
 
 
 #ifdef ENABLE_TIME_PROFILING
@@ -71,6 +71,13 @@
 #define DD_ADD_OUT_SUM_TRACE_TAG		0x6f
 //! Cache Tag for the cache used in cuddAddApplyRecurTrace method.
 #define DD_ADD_MINIMUM_TRACE_TAG		0x6d
+
+struct bdd_constNode_pos {
+  int position;
+  DdNode *const_node;
+};
+
+typedef struct bdd_constNode_pos min_result;
 
 //- Create the ADD of the target set W, given the set of states of W (@ref createTargetSet).
 
@@ -109,6 +116,9 @@ private:
 	// If the System has been analyzed yet.
 	bool system_analyzed;
 
+	// System's BDD
+	BDD *system_bdd;
+
 
 	unsigned int getNoBits(unsigned int number);
 
@@ -121,8 +131,8 @@ private:
 
 	void minimum2(ADD *f, ADD *g, ADD *P);
 	static DdNode *Cudd_addMinimumNS(DdManager * dd, DdNode ** f, DdNode ** g);
-	void Cudd_addApplyMin2(DdNode * f0, DdNode * g0, DdNode * Pf, DdNode * Pg, DdNode **Result);
-	void cuddAddApplyMin2Recur(DD_AOP op, DdNode * f0, DdNode * g0, DdNode * Pf, DdNode * Pg, DdNode **Result);
+	void Cudd_addApplyMin2(DdNode * f, DdNode * g, unsigned int fnode, unsigned int gnode, DdNode * Pf, DdNode * Pg, DdNode **Result);
+	void cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsigned int fnode, unsigned int gnode, DdNode * Pf, DdNode * Pg, DdNode **Result);
 
 	inline std::vector<int> getVarsIndex(BDD *bdd);
 	inline std::vector<int> getVarsIndex(ADD *bdd);
@@ -136,6 +146,8 @@ private:
 	inline void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<BDD> *x, std::vector<BDD> *u, std::vector<BDD> *x_);
 	inline void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<BDD> *x, std::vector<BDD> *x_);
 	inline void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<ADD> *x, std::vector<ADD> *x_);
+
+	inline BDD createXstates(int no_states);
 
 	//! Create the ADD Target set W given the set of states of W as a vector<int>.
 	/**
@@ -161,6 +173,15 @@ private:
 
 	//! Swaps the index of x and x' (or y) of the BDD DD.
 	inline void swapXandX_(BDD *DD, std::vector<ADD> *x, std::vector<ADD> *x_);
+
+	inline unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
+
+	/* APtoSetSP helper functions */
+
+	inline DdNode *addFindMin(ADD *f, int *position);
+	inline DdNode *addFindMinRecur(DdNode *f, int *position, int *track_t, int *track_e);
+	inline bool operatorXUsz(BDD *Q, BDD *XUsz, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
+	inline void APtoSetSPrelax();
 
 
 #ifdef ENABLE_TIME_PROFILING
@@ -224,7 +245,7 @@ public:
 	 */
 	void FloydWarshall(ADD *AG, ADD *APSP, ADD *PA);
 
-	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
+	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports only deterministic transitions.
 	/**
 	 * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
 	 * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
@@ -245,7 +266,7 @@ public:
 	 */
 	void APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W);
 
-	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
+	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports only deterministic transitions.
 	/**
 	 * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
 	 * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
@@ -265,6 +286,12 @@ public:
 	 * @see   FloydWarshall, APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
 	 */
 	void APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W);
+
+	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
+	void APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int no_states, int no_inputs);
+
+	//!
+	BDD createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W);
 
 	//! Dumps the argument BDD to file.
 	/** Dumping is done through Dddmp_cuddBddArrayStore. A dummy array of 1 BDD root is used for this purpose.
