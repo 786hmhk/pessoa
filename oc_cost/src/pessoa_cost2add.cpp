@@ -131,7 +131,8 @@ void pessoa_cost2add::createSysStatesCost(){
 			i=0;
 			while(i<params_symb.n && (++tempv[i])>wmax[i])
 			{
-				tempv[i++]=wmin[i];
+				tempv[i]=wmin[i];
+				i++;
 			}
 			if(i==params_symb.n)
 			{
@@ -178,11 +179,19 @@ void pessoa_cost2add::createSysStatesCost(){
 	}
 
 	total_add_states = (unsigned int) total_states;
-	mexPrintf("Total ADD states: %d\n", total_add_states);
+//	mexPrintf("Total ADD states: %d\n", total_add_states);
 
 #ifdef WAITBAR_ENABLE
 	mexEvalString("delete(h);");
 #endif
+
+	// TODO: FREE MEMORY.
+	mxDestroyArray(pstate_array);
+	mxDestroyArray(pset_state_array);
+	mxDestroyArray(pjnbatch);
+	mxDestroyArray(pstate_cost_array);
+
+	mxFree(tempv);
 }
 
 
@@ -227,8 +236,10 @@ bool pessoa_cost2add::addBatchToADD(double *array, double *state_cost_array, s_v
 	return true;
 }
 
-//!
+//! Plots the System's State Cost. Currently supporting only 3D.
 void pessoa_cost2add::plotSysStateCost(){
+
+	mexPrintf("Plotting ADD... \n");
 
 	double *tempv, cost = 0;
 
@@ -321,9 +332,13 @@ void pessoa_cost2add::plotSysStateCost(){
 	mexPutVariable("caller", "states_array", states_array_mx);
 	mexPutVariable("caller", "cost_array",   cost_array_mx);
 	mexEvalString(	"for ii = 1:length(states_array(:,1)) states_array(ii,:) = params_symb.eta * (states_array(ii,:)' + params_symb.min(params_symb.xoind)); end");
-	mexEvalString("plot3(states_array(:,1), states_array(:,2), cost_array, 'r+')");
+//	mexEvalString("plot3(states_array(:,1), states_array(:,2), cost_array, 'r+'); grid on;");
 
+//	xlabel('length'); ylabel('width'); zlabel('height');
 //	mexEvalString("states_costs_ = [states_array cost_array]");
+
+	mexEvalString("figure; scatter3(states_array(:,1), states_array(:,2), cost_array, 5, cost_array); colormap(jet); xlabel('State Variable x(1)'); ylabel('State Variable x(2)'); zlabel('State Cost');");
+
 
 #ifdef WAITBAR_ENABLE
 	mexEvalString("delete(h);");
@@ -335,7 +350,7 @@ void pessoa_cost2add::plotSysStateCost(){
 	free(tempv);
 }
 
-//!
+//! Checks whether a current state has some cost assigned to it.
 bool pessoa_cost2add::isInADD(double *array, double *cost){
 	long i;
 	double val_bool = 0;
@@ -435,9 +450,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	/* Initialize the Manager. */
 	Cudd mgr(0, 0);
 
-
-	mexPrintf("\n------------------ pessoa_cost2add: TEST BEGIN ----------------- \n\n");
-
 	/* Check for proper number of arguments. */
 	if(nrhs<1 || nrhs>4) {
 		mexErrMsgTxt("Four inputs required: filename, min and max for the System's state space. Optional fourth input: verbose flag.");
@@ -448,12 +460,19 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	else
 		verbose = 0;
 
+	if (verbose > 0){
+//		if(verbose==3){
+//			mexEvalString("profile -memory on;");
+//			mexEvalString("setpref('profiler','showJitLines',1);");
+//		}
+	}
+
 
 	/* Create the pessoa_cost2add object. */
 	pessoa_cost2add cost2add(plhs, prhs, &mgr, verbose);
 	/* Create the ADD. */
 	cost2add.createSysStatesCost();
-	/* Dump the ADD to a .add file. */
+	/* Dump the ADD to an .add file. */
 	if (!cost2add.dumpSysStateCost())
 		mexErrMsgTxt("Error dumping the Systems' Cost ADD into an .add file!");
 
@@ -461,10 +480,12 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	cost2add.dumpSysStateCostDot();
 
 	// Plot ADD.
-	mexPrintf("Plotting ADD... \n");
-	cost2add.plotSysStateCost();
+	//cost2add.plotSysStateCost();
 
-
-	mexPrintf("\n\n------------------ pessoa_cost2add: TEST END   ----------------- \n");
 	mexPrintf("\n------------------ Pessoa: Creating Cost ADD Terminated ------------------- \n");
+
+//	if(verbose==3){
+//		mexEvalString("profile off");
+//		mexEvalString("profsave(profile('info'),'profile_results/pessoa_cost2add')");
+//	}
 }

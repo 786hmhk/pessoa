@@ -1,0 +1,27 @@
+.ver DDDMP-2.0
+.add
+.mode A
+.varinfo 0
+.nnodes 14
+.nvars 12
+.nsuppvars 12
+.ids 0 1 2 3 4 5 6 7 8 9 10 11
+.permids 0 1 2 3 4 5 6 7 8 9 10 11
+.nroots 1
+.rootids 14
+.nodes
+1 T inf 0 0
+2 T 3 0 0
+3 11 11 1 2
+4 10 10 1 3
+5 9 9 1 4
+6 8 8 1 5
+7 7 7 1 6
+8 6 6 1 7
+9 5 5 8 1
+10 4 4 1 9
+11 3 3 1 10
+12 2 2 1 11
+13 1 1 1 12
+14 0 0 1 13
+.end

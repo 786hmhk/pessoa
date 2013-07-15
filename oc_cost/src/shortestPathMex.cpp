@@ -186,7 +186,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 //	/* Create the Cost Adjacency Matrix */
 	mexPrintf("Creating Cost Adjacency Matrix ...\n");
 	ADD AG;
-	AG = sp.createCostAdjacencyMatrix(&S, &SC, nstates, ninputs);
+	AG = sp.createCostAdjacencyMatrixFast(&S, &SC, nstates, ninputs);
 
 	// Create .dot file
 	nodes_add.push_back(AG);
