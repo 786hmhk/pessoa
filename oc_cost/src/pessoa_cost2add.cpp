@@ -460,13 +460,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	else
 		verbose = 0;
 
-	if (verbose > 0){
-//		if(verbose==3){
-//			mexEvalString("profile -memory on;");
-//			mexEvalString("setpref('profiler','showJitLines',1);");
-//		}
-	}
-
 
 	/* Create the pessoa_cost2add object. */
 	pessoa_cost2add cost2add(plhs, prhs, &mgr, verbose);
@@ -476,16 +469,14 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	if (!cost2add.dumpSysStateCost())
 		mexErrMsgTxt("Error dumping the Systems' Cost ADD into an .add file!");
 
-	// Create .dot file
-	cost2add.dumpSysStateCostDot();
+	if (verbose == 3){
+		// Create .dot file
+		cost2add.dumpSysStateCostDot();
 
-	// Plot ADD.
-	//cost2add.plotSysStateCost();
+		// Plot ADD.
+		cost2add.plotSysStateCost();
+	}
+
 
 	mexPrintf("\n------------------ Pessoa: Creating Cost ADD Terminated ------------------- \n");
-
-//	if(verbose==3){
-//		mexEvalString("profile off");
-//		mexEvalString("profsave(profile('info'),'profile_results/pessoa_cost2add')");
-//	}
 }

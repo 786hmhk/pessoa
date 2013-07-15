@@ -58,9 +58,9 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	s_vector params_symb;
 	mxArray *psv;
 
-	char *bddsys       = "System_xux";
-	char *bddsys_costs = "System_Cost_x";
-	char *bddsys_tset  = "System_TargetSet_W";
+	char *bddsys       = "DCMotor";
+	char *bddsys_costs = "DCMotorCosts";
+	char *bddsys_tset  = "DCMotorTargetSet";
 	char *bddsys_name;
 	char *bddsys_costs_name;
 	char *bddsys_tset_name;
@@ -186,7 +186,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 //	/* Create the Cost Adjacency Matrix */
 	mexPrintf("Creating Cost Adjacency Matrix ...\n");
 	ADD AG;
-	AG = sp.createCostAdjacencyMatrixFast(&S, &SC, nstates, ninputs);
+	AG = sp.createCostAdjacencyMatrix(&S, &SC, nstates, ninputs);
 
 	// Create .dot file
 	nodes_add.push_back(AG);

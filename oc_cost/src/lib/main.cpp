@@ -1,11 +1,11 @@
 /**
  * @file
  * @author Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>
- * @version 0.5
+ * @version 0.61
  *
  * @section LICENSE
  *
- * Copyright (c) <2013>, <TU Delft: Delft University of Technology>
+ * Copyright (c) 2013, TU Delft: Delft University of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -58,24 +58,190 @@
 #endif
 
 
-
-
-
+///////////////////////////////////////////////////////////
+/* MAIN */
 int main(int argc, char* argv[]) {
 
 	printf("Main.\n\n");
 
-	example_DSP();
+//	example_DSP();
+//	example_NDSP();
+	test_actual();
 
 	printf("\n\nExiting Program...\n");
 
 	return 0;
 }
+///////////////////////////////////////////////////////////
+
+
+/**/
+void test_actual(){
+
+
+	unsigned int nstates, ninputs;
+	int i;
+
+	char *bddsys       = "DCMotor";
+	char *bddsys_costs = "DCMotorCosts";
+	char *bddsys_tset  = "DCMotorTargetSet";
+	char *bddsys_name;
+	char *bddsys_costs_name;
+	char *bddsys_tset_name;
+	char bdd_suffix[5];
+	char add_suffix[5];
 
 
 
+	nstates = 2583;
+	ninputs = 2001;
+
+	// Print some extra-info
+	printf("\nSymbolic model size: ");
+	printf("%u", nstates);
+	printf(" states; \n");
+	printf("                     %u", ninputs);
+	printf(" inputs. \n");
 
 
+	/* Check if all necessary files exist! */
+
+	// assign the .bdd/.add file suffix
+	strcpy(bdd_suffix,".bdd");
+	strcpy(add_suffix,".add");
+
+	/* Check if the System's BDD exists. */
+	bddsys_name=(char*)malloc(strlen(bddsys)+5);
+	strcpy(bddsys_name, bddsys);
+	strcat(bddsys_name, bdd_suffix);
+//	mxFree(bddsys);
+	//check for file existence
+	printf("Checking %s ...\n", bddsys_name);
+	FILE * smFile;
+	smFile = fopen(bddsys_name,"r");
+	FILE_EXISTS(smFile)
+
+
+	/* Check if the System's-States-Cost ADD file exists. */
+	bddsys_costs_name=(char*)malloc(strlen(bddsys_costs)+5);
+	strcpy(bddsys_costs_name, bddsys_costs);
+	strcat(bddsys_costs_name, add_suffix);
+//	mxFree(bddsys);
+	//check for file existence
+	printf("Checking %s ...\n", bddsys_costs_name);
+	smFile = fopen(bddsys_costs_name,"r");
+	FILE_EXISTS(smFile)
+
+
+	/* Check if the Target Set BDD file exists. */
+	bddsys_tset_name=(char*)malloc(strlen(bddsys_tset)+5);
+	strcpy(bddsys_tset_name, bddsys_tset);
+	strcat(bddsys_tset_name, bdd_suffix);
+//	mxFree(bddsys);
+
+	//check for file existence
+	printf("Checking %s ...\n", bddsys_tset_name);
+	smFile = fopen(bddsys_tset_name,"r");
+	FILE_EXISTS(smFile)
+
+
+	/* Files exists... now load them. */
+
+	// Initialize the Manager.
+	Cudd mgr(0, 0);
+	// Set background
+	mgr.SetBackground(mgr.plusInfinity());
+	//
+
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	std::vector<ADD> nodes_add;
+	FILE *outfile;
+
+	BDD S  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, bddsys_name, NULL));
+
+	ADD SC = ADD(mgr, Dddmp_cuddAddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, bddsys_costs_name, NULL));
+
+	// Create .dot file
+	nodes_add.push_back(SC);
+	outfile = fopen("System_Cost_x.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+	BDD W  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, bddsys_tset_name, NULL));
+
+	// Create .dot file
+	nodes_bdd.push_back(W);
+	outfile = fopen("DCMotorTargetSet.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+
+	/* Create the Shortest Path Object */
+	printf("Creating SP Object ...\n");
+	ShortestPath sp(&mgr, &S, nstates, ninputs); // optimized
+//	ShortestPath sp(&mgr);
+
+//	/* Create the Cost Adjacency Matrix */
+	printf("Creating Cost Adjacency Matrix ...\n");
+	ADD AG;
+	AG = sp.createCostAdjacencyMatrix(&S, &SC, nstates, ninputs);
+
+
+	// Create .dot file
+	nodes_add.push_back(AG);
+	outfile = fopen("System_CostAdjMatrix.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+	/* Find All-pair Shortest Path */
+	printf("Finding All-pair Shortest Path (FW) ...\n");
+	ADD APSP;
+	ADD PA;
+	sp.FloydWarshall(&AG, &APSP, &PA);
+
+	// Create .dot file
+	nodes_add.push_back(APSP);
+	outfile = fopen("System_APSP.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(PA);
+	outfile = fopen("System_APSP_PA.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+	/* Find the All-pair Shortest Path to  a Set. */
+	printf("Finding All-pair Shortest Path to a Set W ...\n");
+	ADD APSP_W;
+	ADD PA_W;
+	sp.APtoSetSP(&APSP, &PA, &W, &APSP_W, &PA_W);
+
+
+	// Create .dot file
+	nodes_add.push_back(APSP_W);
+	outfile = fopen("System_APSP_W.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(PA_W);
+	outfile = fopen("System_APSP_PA_W.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+	printf("Actual test END\n");
+
+}
+
+
+/**/
 void example_DSP(){
 
 	printf("***Deterministic Shortest Path Example.***\n\n");
@@ -107,61 +273,66 @@ void example_DSP(){
 	/************************ Define the System ******************************/
 
 	// Number of states/inputs
-	no_states = 5;
+	no_states = 7;
 	no_inputs = 5;
-//	no_states = 23;
-//	no_inputs = 36;
-
 
 	state_costs = new int[no_states];
 
 	// Give the cost of each state
-//	for (int i = 0; i < no_states; i++){
-//		state_costs[i] = i + 1;
-//	}
-	state_costs[0] = 1;
-	state_costs[1] = 2;
-	state_costs[2] = 1;
-	state_costs[3] = 3;
-	state_costs[4] = 5;
+//	state_costs[0] = 1;
+//	state_costs[1] = 2;
+//	state_costs[2] = 1;
+//	state_costs[3] = 3;
+//	state_costs[4] = 5;
+//	state_costs[5] = 6;
 
-	// Define the System in terms of transitions.
+	state_costs[0] = 1;
+	state_costs[1] = 1;
+	state_costs[2] = 2;
+	state_costs[3] = 3;
+	state_costs[4] = 1;
+	state_costs[5] = 1;
+	state_costs[6] = 3;
+
+	// Define the System in terms of transitions. (x,u,x')
 	// Important: Only deterministic transitions!
+
 	#define SYSTEM_TRANSITIONS \
-							\
+		\
+	  TRANSITION(0,0,1)		\
+	+ TRANSITION(0,2,2)		\
+	+ TRANSITION(1,3,3)     \
+	+ TRANSITION(1,2,4)		\
+	+ TRANSITION(2,2,3)		\
+	+ TRANSITION(2,4,4)		\
+	+ TRANSITION(3,0,5)     \
+	+ TRANSITION(3,1,6)		\
+	+ TRANSITION(4,3,5)		\
+	+ TRANSITION(4,1,6)		\
+	+ TRANSITION(5,0,5)     \
+	+ TRANSITION(6,1,5)     \
+	+ TRANSITION(6,2,6)		\
+	+ TRANSITION(0,3,0)		\
+	+ TRANSITION(1,1,1)
+
+
+
+
+	/*
+	 						\
 	  TRANSITION(0,0,1)		\
 	+ TRANSITION(0,2,2)		\
 	+ TRANSITION(1,3,3)     \
 	+ TRANSITION(2,2,3)		\
 	+ TRANSITION(1,4,4)		\
-	+ TRANSITION(2,4,4)
+	+ TRANSITION(2,4,4)		\
+	+ TRANSITION(4,1,5)
 
-	/*
-	+ TRANSITION(3,4,4)		\
-	+ TRANSITION(4,4,1)		\
-	+ TRANSITION(5,4,4)		\
-	+ TRANSITION(6,4,5)		\
-	+ TRANSITION(7,4,4)		\
-	+ TRANSITION(8,14,4)	\
-	+ TRANSITION(9,20,4)	\
-	+ TRANSITION(10,4,4)	\
-	+ TRANSITION(11,4,6)	\
-	+ TRANSITION(12,4,4)	\
-	+ TRANSITION(13,4,8)	\
-	+ TRANSITION(14,4,4)	\
-	+ TRANSITION(15,35,2)	\
-	+ TRANSITION(16,4,14)	\
-	+ TRANSITION(17,4,10)	\
-	+ TRANSITION(18,4,17)	\
-	+ TRANSITION(19,29,7)	\
-	+ TRANSITION(20,30,20)	\
-	+ TRANSITION(21,15,17)	\
-	+ TRANSITION(22,26,11)
-	*/
+	 */
 
 	// Give the Target Set W.
-	target_set.push_back(3);
 	target_set.push_back(4);
+	target_set.push_back(5);
 
 	/************************************************************************/
 
@@ -171,8 +342,8 @@ void example_DSP(){
 
 	// Create .dot file
 	std::vector<BDD> nodes_bdd;
-	nodes_bdd.push_back(S);
 	FILE *outfile;
+	nodes_bdd.push_back(S);
 	outfile = fopen("System_xux.dot", "w");
 	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
 	fclose(outfile);
@@ -199,6 +370,8 @@ void example_DSP(){
 
 	/* Create the Cost Adjacency Matrix */
 	AG = sp.createCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
+
+
 
 	// Create .dot file
 	nodes_add.push_back(AG);
@@ -230,12 +403,12 @@ void example_DSP(){
 	W = getTargetSet(&mgr, no_states, target_set);
 	BDD W_normal = W;
 
-	// Create .dot file
-	nodes_bdd.push_back(W);
-	outfile = fopen("System_TargetSet_W.dot", "w");
-	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_bdd.clear();
+//	// Create .dot file
+//	nodes_bdd.push_back(W);
+//	outfile = fopen("System_TargetSet_W.dot", "w");
+//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
 
 
 	/* Find the All-pair Shortest Path to  a Set. */
@@ -257,32 +430,39 @@ void example_DSP(){
 	fclose(outfile);
 	nodes_add.clear();
 
+	/* Create the Controller. */
+	BDD controller = sp.createControllerBDD(&S, &PA, &PA_W);
+	nodes_bdd.push_back(controller);
+	outfile = fopen("System_Controller.dot", "w");
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
 
-	/* Storing results into .bdd files. */
-	printf("Storing outcome into .bdd and .add files... ");
-	bool stored;
-
-	// BDD's
-	stored = sp.Dddmp_cuddStore(&S, (char *)"System_xux.bdd");
-	if(!stored) printf("Error saving ADD into file!\n");
-	stored = sp.Dddmp_cuddStore(&W_normal, (char *)"System_TargetSet_W.bdd");
-	if(!stored) printf("Error saving ADD into file!\n");
-	// ADD's
-	stored = sp.Dddmp_cuddStore(&C, (char *)"System_Cost_x.add");
-	if(!stored) printf("Error saving ADD into file!\n");
-	stored = sp.Dddmp_cuddStore(&APSP, (char *)"APSP.add");
-	if(!stored) printf("Error saving ADD into file!\n");
-	stored = sp.Dddmp_cuddStore(&APSP_W, (char *)"APSP_W.add");
-	if(!stored) printf("Error saving ADD into file!\n");
-	stored = sp.Dddmp_cuddStore(&PA, (char *)"PA.add");
-	if(!stored) printf("Error saving ADD into file!\n");
-	stored = sp.Dddmp_cuddStore(&PA_W, (char *)"PA_W.add");
-	if(!stored) printf("Error saving ADD into file!\n");
-
-	stored = writeSysInfo_TBFile(no_states - 1, no_inputs - 1);
-	if(!stored) printf("Error saving System info to .txt!\n");
-
-	printf("done!\n");
+//	/* Storing results into .bdd files. */
+//	printf("Storing outcome into .bdd and .add files... ");
+//	bool stored;
+//
+//	// BDD's
+//	stored = sp.Dddmp_cuddStore(&S, (char *)"System_xux.bdd");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&W_normal, (char *)"System_TargetSet_W.bdd");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	// ADD's
+//	stored = sp.Dddmp_cuddStore(&C, (char *)"System_Cost_x.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&APSP, (char *)"APSP.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&APSP_W, (char *)"APSP_W.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&PA, (char *)"PA.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&PA_W, (char *)"PA_W.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//
+//	stored = writeSysInfo_TBFile(no_states - 1, no_inputs - 1);
+//	if(!stored) printf("Error saving System info to .txt!\n");
+//
+//	printf("done!\n");
 
 
 	// Memory De-allocation
@@ -292,6 +472,190 @@ void example_DSP(){
 	printf("\n***Deterministic Shortest Path Example END. Execution time: %ds (%dms) (%dus)***\n", (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #else
 	printf("\n***Deterministic Shortest Path Example END.***\n");
+#endif
+}
+
+/**/
+void example_NDSP(){
+
+	printf("***Non-Deterministic Shortest Path Example.***\n\n");
+
+	int no_states, no_inputs;
+	int *state_costs;
+	std::vector<int> target_set;
+
+	// Initialize the Manager.
+	Cudd mgr(0, 0);
+	// Set background
+	mgr.SetBackground(mgr.plusInfinity());
+
+	// BDD of the System
+	BDD S;
+	// ADD of state costs
+	ADD SC;
+	// ADD representing the Cost Adjacency Matrix
+	ADD AG;
+	// ADD of the Target Set
+	BDD W;
+
+
+
+
+	/************************ Define the System ******************************/
+
+	// Number of states/inputs
+	no_states = 7;
+	no_inputs = 4;
+
+	state_costs = new int[no_states];
+
+	// Give the cost of each state
+	state_costs[0] = 5;
+	state_costs[1] = 2;
+	state_costs[2] = 4;
+	state_costs[3] = 1;
+	state_costs[4] = 1;
+	state_costs[5] = 10;
+	state_costs[6] = 7;
+
+
+	/*
+	// Define the System in terms of transitions.
+	#define SYSTEM_TRANSITIONS \
+							\
+	  TRANSITION(0,2,1)		\
+	+ TRANSITION(0,2,6)		\
+	  	  	  	  	  	  	\
+	+ TRANSITION(1,1,3)		\
+	  	  	  	  	  	    \
+	+ TRANSITION(2,0,1)		\
+	+ TRANSITION(2,0,3)		\
+	+ TRANSITION(2,1,5)		\
+	  	  	  	  	  	    \
+	+ TRANSITION(3,3,4)		\
+	  	  	  	  	  	    \
+	+ TRANSITION(4,0,5)		\
+	  	  	  	  	  	    \
+	+ TRANSITION(5,1,4)		\
+	  	  	  	  	  	  	\
+	+ TRANSITION(6,0,0)		\
+	+ TRANSITION(6,0,2)
+*/
+	// Give the Target Set W.
+	target_set.push_back(4);
+	target_set.push_back(5);
+
+
+	/************************************************************************/
+
+
+	/* Get the system as a BDD that satisfies (x,u,x') -> {0,1}. */
+	get_S_xux(&mgr, &S, no_states, no_inputs);
+
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	nodes_bdd.push_back(S);
+	FILE *outfile;
+	outfile = fopen("System_xux.dot", "w");
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+	/* Get the cost of each transition of the system, described by an ADD. x -> R. */
+	get_S_cost_x(&mgr, &SC, no_states, no_inputs, state_costs);
+
+	// Create .dot file
+	std::vector<ADD> nodes_add;
+	nodes_add.push_back(SC);
+	outfile = fopen("System_Cost_x.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
+	/* Create the Target set W. */
+	W = getTargetSet(&mgr, no_states, target_set);
+	BDD W_normal = W;
+
+	// Create .dot file
+	nodes_bdd.push_back(W);
+	outfile = fopen("System_TargetSet_W.dot", "w");
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+#ifdef ENABLE_TIME_PROFILING
+	long long start_time = get_usec();
+#endif
+
+	/* Create the Shortest Path Object */
+	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
+//	ShortestPath sp(&mgr);
+
+
+	/* Find the All-pair Shortest Path to  a Set. */
+	ADD APSP_W;
+	ADD PA_W;
+	sp.APtoSetSP(&S, &SC, &W, &APSP_W, &PA_W, no_states, no_inputs);
+
+//	ADD zzz = (~W).Add() * mgr.background();
+//
+//	// Create .dot file
+//	nodes_add.push_back(zzz);
+//	outfile = fopen("zzz.dot", "w");
+//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+
+
+//	// Create .dot file
+//	nodes_add.push_back(APSP_W);
+//	outfile = fopen("System_APSP_W.dot", "w");
+//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//	// Create .dot file
+//	nodes_add.push_back(PA_W);
+//	outfile = fopen("System_APSP_PA_W.dot", "w");
+//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+
+
+
+
+//	/* Storing results into .bdd files. */
+//	printf("Storing outcome into .bdd and .add files... ");
+//	bool stored;
+//
+//	// BDD's
+//	stored = sp.Dddmp_cuddStore(&S, (char *)"System_xux.bdd");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&W_normal, (char *)"System_TargetSet_W.bdd");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	// ADD's
+//	stored = sp.Dddmp_cuddStore(&C, (char *)"System_Cost_x.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&APSP, (char *)"APSP.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&APSP_W, (char *)"APSP_W.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&PA, (char *)"PA.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//	stored = sp.Dddmp_cuddStore(&PA_W, (char *)"PA_W.add");
+//	if(!stored) printf("Error saving ADD into file!\n");
+//
+//	stored = writeSysInfo_TBFile(no_states - 1, no_inputs - 1);
+//	if(!stored) printf("Error saving System info to .txt!\n");
+//	printf("done!\n");
+
+
+	// Memory De-allocation
+	delete[] state_costs;
+
+#ifdef ENABLE_TIME_PROFILING
+	printf("\n***Non-Deterministic Shortest Path Example END. Execution time: %ds (%dms) (%dus)***\n", (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
+#else
+	printf("\n***Non-Deterministic Shortest Path Example END.***\n");
 #endif
 }
 
@@ -306,8 +670,8 @@ void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs){
 
 	int i;
 
-	int no_state_vars = getNoBits(no_states);
-	int no_input_vars = getNoBits(no_inputs);
+	int no_state_vars = getNoBits(no_states - 1);
+	int no_input_vars = getNoBits(no_inputs - 1);
 
 	x  = new BDD[no_state_vars];
 	u  = new BDD[no_input_vars];
@@ -350,7 +714,7 @@ void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int no_inputs, int *costs){
 
 	ADD *x_, *constants;
 
-	int no_state_vars = getNoBits(no_states);
+	int no_state_vars = getNoBits(no_states - 1);
 	int i, j;
 
 	ADD one  = mgr->addOne();
@@ -359,20 +723,10 @@ void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int no_inputs, int *costs){
 	x_        = new ADD[no_state_vars];
 	constants = new ADD[no_states];
 
-
-#ifdef HAS_X__SPACING
 	for (i = 0; i < no_state_vars; i++){
-		x_[i]  = mgr->addVar(i + X__SPACING);
+		x_[i]  = mgr->addVar(i);
 		x_[i]  = x_[i].Ite(one, zero);
 	}
-#else
-	int no_input_vars = no_inputs/2 + no_inputs % 2;
-	for (i = 0; i < no_state_vars; i++){
-		x_[i]  = mgr->addVar(i + (no_state_vars + no_input_vars));
-		x_[i]  = x_[i].Ite(one, zero);
-	}
-#endif
-
 
 	// Get the costs
 	for(i = 0; i < no_states; i++){
@@ -487,7 +841,7 @@ BDD getTargetSet(Cudd *mgr, int no_states, std::vector<int> target_set){
 	int node;
 
 	// Get the number of variables
-	int no_state_vars = getNoBits(no_states);
+	int no_state_vars = getNoBits(no_states - 1);
 
 	BDD x[no_state_vars];
 

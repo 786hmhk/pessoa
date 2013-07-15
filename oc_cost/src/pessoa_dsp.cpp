@@ -52,9 +52,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	sys_name = mxArrayToString(prhs[0]);
 
 	if (verbose > 0){
-		if (verbose == 3){
-			mexPrintf("pessoa_dsp in...\n");
-		}
 	}
 
 
@@ -145,33 +142,41 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 
 	/* Create the Cost Adjacency Matrix */
 	mexPrintf("Creating Cost Adjacency Matrix ...\n");
-	ADD AG = sp.createCostAdjacencyMatrix(&S, &SC);
+	ADD AG = sp.createCostAdjacencyMatrix(&S, &SC, nstates, ninputs);
 
-//	/* Find All-pair Shortest Path */
-//	mexPrintf("Finding All-pair Shortest Path (FW) ...\n");
-//	ADD APSP;
-//	ADD PA;
-//	sp.FloydWarshall(&AG, &APSP, &PA);
-//
-//	/* Find the All-pair Shortest Path to  a Set. */
-//	mexPrintf("Finding All-pair Shortest Path to a Set W ...\n");
-//	ADD APSP_W;
-//	ADD PA_W;
-//	sp.APtoSetSP(&APSP, &PA, &W, &APSP_W, &PA_W);
+	/* Find All-pair Shortest Path */
+	mexPrintf("Finding All-pair Shortest Path (FW) ...\n");
+	ADD APSP;
+	ADD PA;
+	sp.FloydWarshall(&AG, &APSP, &PA);
+
+	/* Find the All-pair Shortest Path to  a Set. */
+	mexPrintf("Finding All-pair Shortest Path to a Set W ...\n");
+	ADD APSP_W;
+	ADD PA_W;
+	sp.APtoSetSP(&APSP, &PA, &W, &APSP_W, &PA_W);
+
+	mexPrintf("Calculating D-SP done!\n");
+
+	/* Create .dot files. */
+	FILE *outfile;
+	std::vector<BDD> nodes_bdd;
+	std::vector<ADD> nodes_add;
 
 
+	// Create .dot file
+	nodes_bdd.push_back(S);
+	outfile = fopen("DCMotor.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
 
-//	/* Create .dot files. */
-//	FILE *outfile;
-//	std::vector<BDD> nodes_bdd;
-//	std::vector<ADD> nodes_add;
-//
-//	// Create .dot file
-//	nodes_add.push_back(AG);
-//	outfile = fopen("System_CostAdjMatrix.dot", "w");
-//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(AG);
+	outfile = fopen("System_CostAdjMatrix.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
 //
 //	// Create .dot file
 //	nodes_add.push_back(APSP);
@@ -187,18 +192,18 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 //	fclose(outfile);
 //	nodes_add.clear();
 //
-//	// Create .dot file
-//	nodes_add.push_back(APSP_W);
-//	outfile = fopen("System_APSP_W.dot", "w");
-//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_add.clear();
-//	// Create .dot file
-//	nodes_add.push_back(PA_W);
-//	outfile = fopen("System_APSP_PA_W.dot", "w");
-//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(APSP_W);
+	outfile = fopen("System_APSP_W.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+	// Create .dot file
+	nodes_add.push_back(PA_W);
+	outfile = fopen("System_APSP_PA_W.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
 
 
 	/* De-allocate Memory */

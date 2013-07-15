@@ -22,20 +22,21 @@ state_cost = Inf;
 
 
  
- %if x(1) == -0.5 && x(2) == -10
- %    state_cost = 3;
- %end
+
  
-if x(1) == -1 && x(2) >= 5
-	state_cost = 3;
+if (x(1) >= 0 || x(1) <= 2) && ( x(2) >= 0 || x(2) <= 2)
+	state_cost = 8;
 end
  
-if x(1) == -0.5 && x(2) >= 5
-	state_cost = 5;
+if (x(1) > 2 || x(1) <= 4) && ( x(2) > 2 || x(2) <= 4)
+	state_cost = 6;
+end
+ 
+if (x(1) > 4 || x(1) <= 6) && ( x(2) > 4 || x(2) <= 6)
+	state_cost = 4.4;
 end
 
-if x(1) >= 1 && x(2) <= 5
-	state_cost = 9.2;
+if (x(1) > 6) && ( x(2) > 6 )
+	state_cost = 3;
 end
- 
 
