@@ -54,13 +54,5 @@ typedef struct t_sv{
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]);
 
-/*
- *
- */
-class pessoa_dsp {
-public:
-	pessoa_dsp();
-	virtual ~pessoa_dsp();
-};
 
 #endif /* PESSOA_DSP_HH_ */

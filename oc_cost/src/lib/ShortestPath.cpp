@@ -113,9 +113,9 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
 
 
 	printf("Self test:\n");
-	printf("x  index begin: %d - end: %d\n", bdd_x[0].getNode()->index,  bdd_x[bdd_x.size()-1].getNode()->index);
-	printf("u  index begin: %d - end: %d\n", bdd_u[0].getNode()->index,  bdd_u[bdd_u.size()-1].getNode()->index);
-	printf("x' index begin: %d - end: %d\n", bdd_x_[0].getNode()->index, bdd_x_[bdd_x_.size()-1].getNode()->index);
+	printf("x  index begin: %3d - end: %3d\n", bdd_x[0].getNode()->index,  bdd_x[bdd_x.size()-1].getNode()->index);
+	printf("u  index begin: %3d - end: %3d\n", bdd_u[0].getNode()->index,  bdd_u[bdd_u.size()-1].getNode()->index);
+	printf("x' index begin: %3d - end: %3d\n", bdd_x_[0].getNode()->index, bdd_x_[bdd_x_.size()-1].getNode()->index);
 
 } /* ShortestPath */
 
@@ -271,7 +271,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
  */
 inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, int node){
 
-	int j;
+	unsigned int j;
 
 	BDD one  = mgr_cpp->bddOne();
 	BDD zero = mgr_cpp->bddZero();
@@ -281,7 +281,7 @@ inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, int node){
 
 	minterm = one;
 
-	for (j = (*x).size() - 1; j >=0; j--){
+	for (j = 0; j < (*x).size(); j++){
 		if (node & 0x01){
 			temp = (*x)[j].Ite(minterm, zero);
 		}
@@ -310,14 +310,14 @@ inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, int node){
  */
 inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, int node){
 
-	int j;
+	unsigned int j;
 
 	ADD one  = mgr_cpp->addOne();
 	ADD minterm, temp;
 
 	minterm = one;
 
-	for (j = (*x).size() - 1; j >=0; j--){
+	for (j = 0; j < (*x).size(); j++){
 		if (node & 0x01){
 			temp = minterm * (*x)[j];
 		}
@@ -349,7 +349,7 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, int node){
  * @return the created minterm as BDD.
  */
 inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y, int x_node, int y_node){
-	int j;
+	unsigned int j;
 
 	ADD one  = mgr_cpp->addOne();
 
@@ -357,7 +357,7 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y,
 
 	minterm = one;
 
-	for (j = (*x).size() - 1; j >=0; j--){
+	for (j = 0; j < (*x).size(); j++){
 		if (x_node & 0x01){
 			temp = minterm * (*x)[j];
 		}
@@ -368,7 +368,7 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y,
 		minterm = temp;
 		x_node >>= 1;
 	}
-	for (j = (*y).size() - 1; j >=0; j--){
+	for (j = 0; j < (*y).size(); j++){
 		if (y_node & 0x01){
 			temp = minterm * (*y)[j];
 		}
@@ -679,49 +679,6 @@ ADD ShortestPath::createTargetSet(BDD *system, int no_states, int no_inputs, std
 	return cofactor;
 } /* createTargetSet */
 
-
-//! Swaps the index of x and x' (or y) of the BDD DD.
-inline void ShortestPath::swapXandX_(BDD *DD, std::vector<ADD> *x, std::vector<ADD> *x_){
-
-	int permute[mgr_cpp->ReadSize()];
-	int i;
-	int k = 0;
-	int from, to;
-
-	/* Important: This algorithm works only if x proceeds x_. */
-	to = (*x)[0].getNode()->index;
-	for (i = 0; i < to; i++){
-		permute[i] = mgr_cpp->ReadInvPerm(i);
-	}
-
-	k = 0;
-	from = to;
-	to   = (*x)[0].getNode()->index + (*x).size();
-	for (i = from; i < to; i++){
-		permute[i] = (*x_)[k].getNode()->index;
-		k++;
-	}
-
-	from = to;
-	to   = (*x_)[0].getNode()->index;
-	for (i = from; i < to; i++){
-		permute[i] = mgr_cpp->ReadInvPerm(i);
-	}
-
-	k = 0;
-	from = to;
-	to   = (*x_)[0].getNode()->index + (*x_).size();
-	for (i = from; i < to; i++){
-		permute[i] = (*x)[k].getNode()->index;
-		k++;
-	}
-
-	// Apply Permutation
-	*DD = DD->Permute(permute);
-
-}/* permute */
-
-
 //! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
 /**
  * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
@@ -780,7 +737,6 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
 										// which means no_states = 2*3 = 6 => 2 extra states!!
 	}
 	else{
-
 		// x and y variables.
 		add_x = &this->add_x;
 		add_y = &this->add_x_;
@@ -793,7 +749,7 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
 	}
 
 	/* The target set is given a BDD with x variables. We need to permute the x variables with x'. */
-	swapXandX_(W, add_x, add_y);
+//	BDD W_swapped = W->SwapVariables(*bdd_x, *bdd_y);
 
 	/* Find the shortest path and the pointer array, given the target set W. */
 	BDD system_rstct_x, bdd_minterm;
@@ -802,51 +758,48 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
 	ADD P1  = mgr_cpp->addZero();
 	ADD op2;
 	ADD P2;
+	ADD temp;
 	DdNode *result[2];
 
-	unsigned int fnode, gnode;
-
-	printf("Iterate over all states...\n");
+	int no_states_w = 0;
 
 	/* Iterate over all y (=x') states. */
 	// TODO: Check ddPrintMintermAux() in cuddUtil.c
 	// it might a better/faster implementation.
 	for (i = 0; i < no_states; i++){
 
-		if (i == 0){
-			fnode = gnode = 0;
-		}
-		else{
-			fnode = i - 1;
-			gnode = i;
-		}
+//		printf("Checking: %4d ", i);
 
-//		printf("zzz1\n");
 		// Create the x minterm.
-		bdd_minterm = createMinterm(bdd_y,i);
+		bdd_minterm = createMinterm(bdd_x,i);
 
-//		printf("zzz2\n");
 		// not a valid input.
 		if (W->Restrict(bdd_minterm).IsZero()){
+//			printf(" ...not found!\n");
 			continue;
 		}
-		// valid input
+		// valid state
 		else{
-			printf("zzz3: %d\n", i);
+//			printf("found target!(%d)\n", i);
 			add_minterm = createMinterm(add_y, i);
 
 			op2 = APSP->Cofactor(add_minterm);
 			P2  = PA->Cofactor(add_minterm);
-			Cudd_addApplyMin2(op1.getNode(),op2.getNode(),fnode,gnode,P1.getNode(),P2.getNode(),result);
+
+			// A little trick to get rid of the Zero in the ADD. :) Instead of zero, now I am getting the node number (+1).
+			temp = (P2 * mgr_cpp->minusInfinity()) + mgr_cpp->constant(i+1);
+			temp = temp.Maximum(P2);
+
+
+			Cudd_addApplyMin2(op1.getNode(),op2.getNode(),P1.getNode(),temp.getNode(),result);
 			op1 = ADD(*mgr_cpp, result[0]);
 			P1  = ADD(*mgr_cpp, result[1]);
+
+			no_states_w++;
 		}
 	}
 
 	/* Get the result */
-//	*APSP_W = ADD(*mgr_cpp, result[0]);
-//	*PA_W   = ADD(*mgr_cpp, result[1]);
-
 	*APSP_W = op1;
 	*PA_W   = P1;
 
@@ -857,6 +810,8 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
 		delete add_x;
 		delete add_y;
 	}
+
+	printf("Total States in the Target Set: %d - Total States: %d\n", no_states_w, no_states);
 
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
@@ -950,7 +905,7 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W
 		for (i = 1; i < W.size(); i++){
 			op2 = APSP_rstrct.Restrict(createMinterm(add_y,W[i]));
 			P2  = PA_rstrct.Restrict(createMinterm(add_y,W[i]));
-			Cudd_addApplyMin2(op1.getNode(),op2.getNode(),W[i-1],W[i],P1.getNode(),P2.getNode(),result);
+//			Cudd_addApplyMin2(op1.getNode(),op2.getNode(),W[i-1],W[i],P1.getNode(),P2.getNode(),result); // TODO: FIX THIS!!
 			op1 = ADD(*mgr_cpp, result[0]);
 			P1  = ADD(*mgr_cpp, result[1]);
 		}
@@ -978,7 +933,7 @@ inline BDD ShortestPath::createXstates(int no_states){
 	BDD temp;
 
 	int i;
-	int j;
+	unsigned int j;
 	int node;
 
 	/* Create the target set */
@@ -989,7 +944,7 @@ inline BDD ShortestPath::createXstates(int no_states){
 		minterm = one;
 		node    = i;
 
-		for (j = no_state_vars - 1; j >=0; j--){
+		for (j = 0; j < no_state_vars; j++){
 			if (node & 0x01){
 				temp = bdd_x[j].Ite(minterm, zero);
 			}
@@ -1131,7 +1086,7 @@ inline bool ShortestPath::operatorXUsz(BDD *Q, BDD *XUsz, std::vector<BDD> *bdd_
 	return empty;
 }
 
-
+//!
 inline DdNode *ShortestPath::addFindMin(ADD *f, int *position){
 	int track_t = 0;
 	int track_e = 0;
@@ -1326,7 +1281,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int
 
 } /* APtoSetSP */
 
-
+//!
 inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_){
 
 	unsigned int sq_node = (unsigned int)APSP_PA->Restrict(createMinterm(x_, *target_node)).getNode()->type.value;
@@ -1432,15 +1387,14 @@ BDD ShortestPath::createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W){
 //			printf("(%d,u,%d)\n", i, fw_node);
 			controller += x.Ite(restrct_x_, mgr_cpp->bddZero());
 
-			// TODO: DELETE THIS.
-			for (unsigned int j =0; j <no_inputs; j++){
-				BDD u = createMinterm(&bdd_u, j);
-				if (!(restrct_x_.Restrict(u).IsZero()))
-					printf("(%d,%d)\n", i, j);
-			}
+//			// TODO: DELETE THIS.
+//			for (unsigned int j =0; j <no_inputs; j++){
+//				BDD u = createMinterm(&bdd_u, j);
+//				if (!(restrct_x_.Restrict(u).IsZero()))
+//					printf("(%d,%d)\n", i, j);
+//			}
 		}
 	}
-
 
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
@@ -1509,19 +1463,6 @@ bool ShortestPath::Dddmp_cuddStore(ADD *f, char *fname, char *ddname, char **var
 	if (ok) return true;
 	else return false;
 }
-
-
-//BDD ShortestPath::Dddmp_cuddBDDLoad(char *file, Dddmp_VarMatchType varMatchMode, char **varmatchnames, int *varmatchauxids, int *varcomposeids, int mode, FILE *fp){
-//	/* Create the C++ objects. */
-//	return BDD(mgr_cpp, Dddmp_cuddBddLoad(mgr, varMatchMode, varmatchnames, varmatchauxids, varcomposeids, mode, file, fp));
-//}
-//
-//
-//ADD ShortestPath::Dddmp_cuddADDLoad(char *file, Dddmp_VarMatchType varMatchMode, char **varmatchnames, int *varmatchauxids, int *varcomposeids, int mode, FILE *fp){
-//	/* Create the C++ objects. */
-//	return ADD(mgr_cpp, Dddmp_cuddBddLoad(mgr, varMatchMode, varmatchnames, varmatchauxids, varcomposeids, mode, file, fp));
-//}
-
 
 
 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
@@ -1607,8 +1548,8 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 	/* Zero and One (constant) nodes. Used to create the minterms.*/
 	one  = Cudd_ReadOne(mgr);
 	zero = Cudd_ReadZero(mgr);
-//	Cudd_Ref(one);
-//	Cudd_Ref(zero);
+	Cudd_Ref(one);
+	Cudd_Ref(zero);
 
 	/* "Copy" the AG matrix. */
 	S = AG_;
@@ -1626,8 +1567,8 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 		yminterm = one;
 
 		/* Creating the minterms. */
-		// always construct the ADD from the bottom to the top.
-		for (j = no_vars - 1; j >=0; j--){
+		// LSB -- MSB
+		for (j = 0; j < no_vars; j++){
 			if (element & 1){
 				// row
 				temp_node = Cudd_addIte(mgr, xx[j], xminterm, zero);
@@ -1671,8 +1612,8 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 //		P = Cudd_addOuterSum(mgr,S,R,C); // if you want only the APSP and not the PA.
 		AddOuterSumTrace(S,R,C,Result,i+1);
 		P = Result[0];
-//		Cudd_Ref(P);
-//		Cudd_Ref(Result[1]);
+		Cudd_Ref(P);
+		Cudd_Ref(Result[1]);
 		// Caution here! It might happen that in previous steps the c(i,k) + c(k,j)
 		// to have been already less than c(i,j), meaning that we have already recorded
 		// a pointer in the pointer array for that path. Now we find out that a new
@@ -1682,6 +1623,7 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 		// why we use maximum here.
 		TR_temp = Cudd_addApply(mgr,Cudd_addMaximum,TR,Result[1]);
 		Cudd_Ref(TR_temp);
+		Cudd_Deref(Result[1]);
 
 		/* Keep the new matrix P. Delete others. */
 		Cudd_RecursiveDeref(mgr,R);
@@ -1693,10 +1635,7 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 		TR = TR_temp;
 	}
 
-//	Cudd_Deref(S);
-
-//	Cudd_Ref(S);
-//	Cudd_Ref(TR);
+	Cudd_Deref(S);
 
 	/* Memory De-allocation. */
 	free(xx);
@@ -1766,7 +1705,7 @@ void ShortestPath::AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode
 		if (cuddIsConstant(M)) {
 			if (cuddV(R) < cuddV(M)) {
 //				printf("cuddAddOuterSumRecurTrace: return constant/			less %d\n", node);
-				cuddDeref(R);
+//				cuddDeref(R);
 				Result[0] = R;
 				Result[1] = cuddUniqueConst(mgr, node);
 				return;
@@ -1781,8 +1720,8 @@ void ShortestPath::AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode
 //			printf("IN (node %d)\n", node);
 			DdNode *min_result[2];
 			Cudd_addApplyMinTrace(Cudd_addMinimum, R, M, R, min_result, node);
-			cuddRef(min_result[0]);
-			cuddRef(min_result[1]);
+//			cuddRef(min_result[0]);
+//			cuddRef(min_result[1]);
 
 			Result[0] = min_result[0];
 			// Caution!
@@ -1794,7 +1733,7 @@ void ShortestPath::AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode
 			else{
 				Result[1] = min_result[1];
 			}
-			Cudd_RecursiveDeref(mgr,R);
+			cuddDeref(R);
 //			Cudd_RecursiveDeref(mgr,Result[0]);
 //			Cudd_RecursiveDeref(mgr,Result[1]);
 			return;
@@ -2011,10 +1950,8 @@ void ShortestPath::cuddAddApplyRecurMinTrace(DD_AOP op, DdNode * f, DdNode * g, 
     if (E0 == NULL) {
     	Result[0] = NULL;
     	Result[1] = NULL;
-    	printf("wtf! null\n");
     	Cudd_RecursiveDeref(mgr_cpp->getManager(),T0);
     	Cudd_RecursiveDeref(mgr_cpp->getManager(),T1);
-    	printf("wtf! nulll\n");
     	return;
     }
     cuddRef(E0);
@@ -2023,10 +1960,8 @@ void ShortestPath::cuddAddApplyRecurMinTrace(DD_AOP op, DdNode * f, DdNode * g, 
 
     res = (T0 == E0) ? T0 : cuddUniqueInter(mgr_cpp->getManager(),(int)index,T0,E0);
     if (res == NULL) {
-    	printf("wtf! null2\n");
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), T0);
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), E0);
-		printf("wtf! nulll2\n");
     	Result[0] = NULL;
     	Result[1] = NULL;
 		return;
@@ -2038,10 +1973,8 @@ void ShortestPath::cuddAddApplyRecurMinTrace(DD_AOP op, DdNode * f, DdNode * g, 
 
     res = (T1 == E1) ? T1 : cuddUniqueInter(mgr_cpp->getManager(),(int)index,T1,E1);
     if (res == NULL) {
-    	printf("wtf! null3\n");
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), T1);
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), E1);
-		printf("wtf! nulll3\n");
     	Result[0] = NULL;
     	Result[1] = NULL;
 		return;
@@ -2078,8 +2011,11 @@ DdNode *ShortestPath::Cudd_addMinimumNS(DdManager * dd, DdNode ** f, DdNode ** g
 		return (G);
 	if (G == DD_PLUS_INFINITY(dd))
 		return (F);
-	if (F == G)
+	if (F == G){
+//		printf("EQUAL!!!!\n");
 		return (F);
+	}
+
 
 	if (cuddIsConstant(F) && cuddIsConstant(G)) {
 		if (cuddV(F) <= cuddV(G)) {
@@ -2113,11 +2049,11 @@ DdNode *ShortestPath::Cudd_addMinimumNS(DdManager * dd, DdNode ** f, DdNode ** g
  *  Cudd_addXor Cudd_addXnor
  */
 
-void ShortestPath::Cudd_addApplyMin2(DdNode * f, DdNode * g, unsigned int fnode, unsigned int gnode, DdNode * Pf, DdNode * Pg, DdNode **Result){
+void ShortestPath::Cudd_addApplyMin2(DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result){
 
     do {
 		mgr_cpp->getManager()->reordered = 0;
-		cuddAddApplyMin2Recur(Cudd_addMinimumNS,f,g,fnode,gnode,Pf,Pg,Result);
+		cuddAddApplyMin2Recur(Cudd_addMinimumNS,f,g,Pf,Pg,Result);
     } while (mgr_cpp->getManager()->reordered == 1);
 } /* Cudd_addApplyTrace */
 
@@ -2125,14 +2061,14 @@ void ShortestPath::Cudd_addApplyMin2(DdNode * f, DdNode * g, unsigned int fnode,
 /**
  * Implements the recursive step of the @ref Cudd_addApplyMin2.
  */
-void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsigned int fnode, unsigned int gnode, DdNode * Pf, DdNode * Pg, DdNode **Result)
+void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result)
 {
     DdNode *res,
 	   *fv, *fvn, *gv, *gvn,
 	   *Pfv, *Pfvn, *Pgv, *Pgvn,
 	   *T0, *T1, *E0, *E1;
-    unsigned int ford, gord, Pford, Pgord;
-    unsigned int index0;//, index1;
+    unsigned int index;
+    unsigned int topf, topg, topPf, topPg, v;
 //    DD_CTFP cacheOp;
 
     /* Check terminal cases. Op may swap f and g to increase the
@@ -2144,33 +2080,16 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsi
     if (res != NULL) {
 //    	printf("Res! \n");
     	Result[0] = res;
-
     	if(cuddIsConstant(Pf) && cuddIsConstant(Pg)){
 //    		printf("Res 1. Is constant! \n");
     		if(cuddV(f) < cuddV(g)){
-    			if (cuddV(Pf) == 0){
-    				Result[1] = Cudd_addConst(mgr_cpp->getManager(), fnode + 1); //TODO: this is causing index1 to fail
-    			}
-    			else{
-    				Result[1] = Pf;
-    			}
+    			Result[1] = Pf;
     		}
-    		else{
-    			if (cuddV(Pg) == 0){
-    				Result[1] = Cudd_addConst(mgr_cpp->getManager(), gnode + 1); //TODO: this is causing index1 to fail
-    			}
-    			else{
-    				Result[1] = Pg;
-    			}
+    		else {
+    			Result[1] = Pg;
     		}
     		return;
     	}
-
-//		if (Pf == Pg){
-//			printf("Res 1. Are equal! \n");
-//			Result[1] = Pf;
-//			return;
-//		}
     }
 
 
@@ -2189,86 +2108,47 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsi
 //    }
 #endif
 
-    /* Recursive step for f,g. */
-	ford = cuddI(mgr_cpp->getManager(),f->index);
-	gord = cuddI(mgr_cpp->getManager(),g->index);
-	if (ford <= gord) {
-		index0 = f->index;
-		// It might happen that f is going to reach
-		// a constant node first. In that case we
-		// actually can go further down the DD.
-		if(!cuddIsConstant(f)){
-			fv  = cuddT(f);
-			fvn = cuddE(f);
-		}
-		else{
-			index0 = g->index;
-			fv = fvn = f;
-		}
+
+
+
+	// Find the top variable.
+	topf  = cuddI(mgr,f->index);
+	topg  = cuddI(mgr,g->index);
+	topPf = cuddI(mgr,Pf->index);
+	topPg = cuddI(mgr,Pg->index);
+	v = ddMin(topf,ddMin(topg,ddMin(topPf,topPg)));
+
+	/* Compute cofactors. */
+	if (topf == v) {
+		fv  = cuddT(f);
+		fvn = cuddE(f);
 	} else {
-		index0 = g->index;
 		fv = fvn = f;
 	}
-
-	if (gord <= ford) {
-		// It might happen that g is going to reach
-		// a constant node first. In that case we
-		// actually can go further down the DD.
-		if(!cuddIsConstant(g)){
-			gv  = cuddT(g);
-			gvn = cuddE(g);
-		}
-		else{
-			gv = gvn = g;
-		}
+	if (topg == v) {
+		gv  = cuddT(g);
+		gvn = cuddE(g);
 	} else {
 		gv = gvn = g;
 	}
-
-
-    /* Recursive step for Pf, Pg. */
-	Pford = cuddI(mgr_cpp->getManager(),Pf->index);
-	Pgord = cuddI(mgr_cpp->getManager(),Pg->index);
-
-	if (Pford <= Pgord) {
-//		index1 = Pf->index;
-		// It might happen that Pf is going to reach
-		// a constant node first. In that case we
-		// actually can go further down the DD.
-		if(!cuddIsConstant(Pf)){
-			Pfv    = cuddT(Pf);
-			Pfvn   = cuddE(Pf);
-		}
-		else{
-//			index1 = Pf->index;
-			Pfv = Pfvn = Pf;
-		}
+	if (topPf == v) {
+		Pfv  = cuddT(Pf);
+		Pfvn = cuddE(Pf);
 	} else {
-//		index1 = Pg->index;
 		Pfv = Pfvn = Pf;
 	}
-
-	if (Pgord <= Pford) {
-//		index1 = Pg->index;
-		// It might happen that Pg is going to reach
-		// a constant node first. In that case we
-		// actually can go further down the DD.
-		if(!cuddIsConstant(Pg)){
-			Pgv  = cuddT(Pg);
-			Pgvn = cuddE(Pg);
-		}
-		else{
-//			index1 = Pg->index;
-			Pgv = Pgvn = Pg;
-		}
+	if (topPg == v) {
+		Pgv  = cuddT(Pg);
+		Pgvn = cuddE(Pg);
 	} else {
-//		index1 = Pf->index;
 		Pgv = Pgvn = Pg;
 	}
 
+	index = mgr->invperm[v];
 
 	// True
-	cuddAddApplyMin2Recur(op,fv,gv,fnode,gnode,Pfv,Pgv,Result);
+//	printf("true... %d - %d\n", index0 ,index1);
+	cuddAddApplyMin2Recur(op,fv,gv,Pfv,Pgv,Result);
     T0 = Result[0];
     T1 = Result[1];
     if (T0 == NULL) {
@@ -2279,8 +2159,10 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsi
     cuddRef(T0);
     cuddRef(T1);
 
+
     // Else
-    cuddAddApplyMin2Recur(op,fvn,gvn,fnode,gnode,Pfvn,Pgvn,Result);
+//	printf("else... %d - %d \n", index0, index1);
+    cuddAddApplyMin2Recur(op,fvn,gvn,Pfvn,Pgvn,Result);
     E0 = Result[0];
     E1 = Result[1];
     if (E0 == NULL) {
@@ -2290,45 +2172,46 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsi
     	Cudd_RecursiveDeref(mgr_cpp->getManager(),T1);
     	return;
     }
-    cuddRef(E0);
-    cuddRef(E1);
+	cuddRef(E0);
+	cuddRef(E1);
 
-    // If it exists return it, otherwise create the node.
-//    printf("Index0: %d\n", index0);
-    res = (T0 == E0) ? T0 : cuddUniqueInter(mgr_cpp->getManager(),(int)index0,T0,E0);
-    if (res == NULL) {
-    	printf("Res0 cuddUniqueInter FAIL!\n");
+
+	// If it exists return it, otherwise create the node.
+	res = (T0 == E0) ? T0 : cuddUniqueInter(mgr_cpp->getManager(),(int)index,T0,E0);
+	if (res == NULL) {
+		printf("Res0 cuddUniqueInter FAIL!\n");
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), T0);
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), E0);
-    	Result[0] = NULL;
-    	Result[1] = NULL;
+		Result[0] = NULL;
+		Result[1] = NULL;
 		return;
-    }
-    cuddDeref(T0);
-    cuddDeref(E0);
+	}
+	cuddDeref(T0);
+	cuddDeref(E0);
 
-    // Result
-    Result[0] = res;
+	// Result
+	Result[0] = res;
 
-    // If it exists return it, otherwise create the node.
-//    printf("Index1: %d\n", index1); // TODO: index1 has issues/getting wrong value: has to do with the min op. See above!!
-    								  // Nevertheless I have observed that index0=index1, therefore I am using only index0.
-    res = (T1 == E1) ? T1 : cuddUniqueInter(mgr_cpp->getManager(),(int)index0,T1,E1); // this is normally index1.
-    if (res == NULL) {
-    	printf("Res1 cuddUniqueInter FAIL!\n");
+
+
+	// If it exists return it, otherwise create the node.
+	res = (T1 == E1) ? T1 : cuddUniqueInter(mgr_cpp->getManager(),(int)index,T1,E1); // this is normally index1.
+	if (res == NULL) {
+		printf("Res1 cuddUniqueInter FAIL!\n");
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), T0);
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), E0);
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), T1);
 		Cudd_RecursiveDeref(mgr_cpp->getManager(), E1);
-    	Result[0] = NULL;
-    	Result[1] = NULL;
+		Result[0] = NULL;
+		Result[1] = NULL;
 		return;
-    }
-    cuddDeref(T1);
-    cuddDeref(E1);
+	}
+	cuddDeref(T1);
+	cuddDeref(E1);
 
-    // Result
-    Result[1] = res;
+	// Result
+	Result[1] = res;
+
 
     /* Store result. */
 #ifdef ENABLE_CACHE

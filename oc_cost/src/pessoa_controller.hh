@@ -28,13 +28,28 @@
 #include "ShortestPath.hh"
 
 
-/*
- *
- */
-class pessoa_controller_c {
-public:
-	pessoa_controller_c();
-	virtual ~pessoa_controller_c();
-};
+#define FILE_EXISTS(file) 	if ((file)==NULL) \
+								{ \
+									mexEvalString("warndlg('Symbolic model file not found!','Pessoa Error')");\
+									mexErrMsgTxt("\nERROR: Symbolic model file not found!.\n"); \
+								} \
+								else \
+								{ \
+									fclose((file));\
+								}
+
+// TODO: delete this when used together with the Pessoa project.
+// Add "pessoa.h" instead.
+typedef struct t_sv{
+	int n;
+	int m;
+	double* nume;
+	double* nbits;
+	int totbits;
+	int nbitsloop;
+	int deter;
+	int nbitsx;
+	double* nxbits;
+}s_vector;
 
 #endif /* PESSOACONTROLLERC_HH_ */

@@ -158,25 +158,34 @@ void test_actual(){
 	std::vector<ADD> nodes_add;
 	FILE *outfile;
 
-	BDD S  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, bddsys_name, NULL));
+	BDD S  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotor.bdd", NULL));
 
-	ADD SC = ADD(mgr, Dddmp_cuddAddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, bddsys_costs_name, NULL));
+	BDD CS  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController_dom.bdd", NULL));
+
+	// Create .dot file
+	nodes_bdd.push_back(S);
+	outfile = fopen("DCMotor.dot", "w");
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+	ADD SC = ADD(mgr, Dddmp_cuddAddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorCosts.add", NULL));
 
 	// Create .dot file
 	nodes_add.push_back(SC);
-	outfile = fopen("System_Cost_x.dot", "w");
+	outfile = fopen("DCMotorCosts.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
 
-	BDD W  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, bddsys_tset_name, NULL));
+	BDD W  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorTargetSet.bdd", NULL));
 
 	// Create .dot file
 	nodes_bdd.push_back(W);
 	outfile = fopen("DCMotorTargetSet.dot", "w");
-	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
 	fclose(outfile);
-	nodes_add.clear();
+	nodes_bdd.clear();
 
 
 	/* Create the Shortest Path Object */
@@ -192,7 +201,7 @@ void test_actual(){
 
 	// Create .dot file
 	nodes_add.push_back(AG);
-	outfile = fopen("System_CostAdjMatrix.dot", "w");
+	outfile = fopen("DCMotor_CostAdjMatrix.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
@@ -205,13 +214,13 @@ void test_actual(){
 
 	// Create .dot file
 	nodes_add.push_back(APSP);
-	outfile = fopen("System_APSP.dot", "w");
+	outfile = fopen("DCMotor_APSP.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
 	// Create .dot file
 	nodes_add.push_back(PA);
-	outfile = fopen("System_APSP_PA.dot", "w");
+	outfile = fopen("DCMotor_APSP_PA.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
@@ -225,16 +234,22 @@ void test_actual(){
 
 	// Create .dot file
 	nodes_add.push_back(APSP_W);
-	outfile = fopen("System_APSP_W.dot", "w");
+	outfile = fopen("DCMotor_APSP_W.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
 	// Create .dot file
 	nodes_add.push_back(PA_W);
-	outfile = fopen("System_APSP_PA_W.dot", "w");
+	outfile = fopen("DCMotor_APSP_PA_W.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
 	nodes_add.clear();
+
+
+	/* Create the Controller. */
+	BDD controller = sp.createControllerBDD(&CS, &PA, &PA_W);
+
+	sp.Dddmp_cuddStore(&controller, "DCMotorController_dom_SP.bdd");
 
 	printf("Actual test END\n");
 
@@ -331,8 +346,8 @@ void example_DSP(){
 	 */
 
 	// Give the Target Set W.
-	target_set.push_back(4);
 	target_set.push_back(5);
+	target_set.push_back(6);
 
 	/************************************************************************/
 
@@ -789,30 +804,30 @@ BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_state_var, int no_
 
 	for (i = 0; i < iteration; i++){
 
-		// Writing backwards because of the format: MSB--LSB
+		// Writing in the format: LSB -- MSB.
 		if (i < no_state_var){
 			if ((xi & 0x01) == 1){
-				transition *= x[no_state_var -1 - i];
+				transition *= x[i];
 			}
 			else{
-				transition *= !x[no_state_var -1 - i];
+				transition *= !x[i];
 			}
 
 			if ((xi_ & 0x01) == 1){
-				transition *= x_[no_state_var -1 - i];
+				transition *= x_[i];
 			}
 			else{
-				transition *= !x_[no_state_var -1 - i];
+				transition *= !x_[i];
 			}
 		}
 
 
 		if (i < no_input_var){
 			if ((ui & 0x01) == 1){
-				transition *= u[no_input_var -1 - i];
+				transition *= u[i];
 			}
 			else{
-				transition *= !u[no_input_var -1 - i];
+				transition *= !u[i];
 			}
 		}
 
@@ -859,7 +874,7 @@ BDD getTargetSet(Cudd *mgr, int no_states, std::vector<int> target_set){
 		minterm = one;
 		node    = target_set[i];
 
-		for (j = no_state_vars - 1; j >=0; j--){
+		for (j = 0; j < no_state_vars; j++){
 			if (node & 0x01){
 				temp = x[j].Ite(minterm, zero);
 			}

@@ -1,11 +1,11 @@
 /**
  * @file
  * @author Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>
- * @version 0.5
+ * @version 0.61
  *
  * @section LICENSE
  *
- * Copyright (c) <2013>, <TU Delft: Delft University of Technology>
+ * Copyright (c) 2013, TU Delft: Delft University of Technology
  * All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
@@ -60,8 +60,20 @@
 #define TRANSITION(xx,uu,xx_) 	BDD_transition(mgr,x,u,x_,no_state_vars,no_input_vars,xx,uu,xx_)
 
 
+#define FILE_EXISTS(file) 	if ((file)==NULL) \
+								{ \
+									printf("\nERROR: Symbolic model file not found!.\n"); \
+								} \
+								else \
+								{ \
+									fclose((file));\
+								}
+
+
 void example_FW();
 void example_DSP();
+void example_NDSP();
+void test_actual();
 
 void get_S_xux(Cudd *mgr, BDD *T, int no_states, int no_inputs);
 BDD BDD_transition(Cudd *mgr, BDD *x, BDD *u, BDD *x_, int no_states, int no_inputs, int xi, int ui, int xi_);

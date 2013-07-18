@@ -1,2 +1,5 @@
 
 - Depending on how many the states/inputs are, we might have to change the type of the variable, i.e. to long long.
+- For the deterministic case, think if you need to change the PA_W...by just merging the columns of the PA.
+- see constraindecomp
+- Need to know how to handle self transitions, regarding the cost to be assign to them. Self transition = zero cost OR Self transition = cost of state???

@@ -7,16 +7,6 @@
 
 #include "pessoa_dsp.hh"
 
-pessoa_dsp::pessoa_dsp() {
-	// TODO Auto-generated constructor stub
-
-}
-
-pessoa_dsp::~pessoa_dsp() {
-	// TODO Auto-generated destructor stub
-}
-
-
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 
@@ -158,6 +148,43 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 
 	mexPrintf("Calculating D-SP done!\n");
 
+
+	/* Dump results into files. */
+	if (verbose == 3){
+		mexPrintf("Dumping PA and PA_W into files...\n");
+	}
+
+
+	// Create the file name.
+	char *name = (char*)mxMalloc(strlen(sys_name)+5+9);
+	strcpy(name, sys_name);
+	strcat(name, "_APSP_PA");
+	strcat(name, ".add");
+
+	DdNode *fn = PA.getNode();
+	/* Dump the PA ADD to an .add file. */
+	if (!Dddmp_cuddAddStore(mgr.getManager(), NULL, fn, NULL, NULL, DDDMP_MODE_TEXT, DDDMP_VARIDS, name, NULL))
+		mexErrMsgTxt("Error dumping the APSP PA ADD into an .add file!");
+
+	mxFree(name);
+
+	name = (char*)mxMalloc(strlen(sys_name)+5+11);
+	strcpy(name, sys_name);
+	strcat(name, "_APSP_PA_W");
+	strcat(name, ".add");
+	fn = PA_W.getNode();
+	/* Dump the PA_W ADD to an .add file. */
+	if (!Dddmp_cuddAddStore(mgr.getManager(), NULL, fn, NULL, NULL, DDDMP_MODE_TEXT, DDDMP_VARIDS, name, NULL))
+		mexErrMsgTxt("Error dumping the APSP PA_W ADD into an .add file!");
+
+	mxFree(name);
+
+
+
+
+
+
+
 	/* Create .dot files. */
 	FILE *outfile;
 	std::vector<BDD> nodes_bdd;
@@ -212,3 +239,4 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	mxFree(bddsys_tset_name);
 	mxFree(sys_name);
 }
+

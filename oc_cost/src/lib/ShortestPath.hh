@@ -131,8 +131,8 @@ private:
 
 	void minimum2(ADD *f, ADD *g, ADD *P);
 	static DdNode *Cudd_addMinimumNS(DdManager * dd, DdNode ** f, DdNode ** g);
-	void Cudd_addApplyMin2(DdNode * f, DdNode * g, unsigned int fnode, unsigned int gnode, DdNode * Pf, DdNode * Pg, DdNode **Result);
-	void cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, unsigned int fnode, unsigned int gnode, DdNode * Pf, DdNode * Pg, DdNode **Result);
+	void Cudd_addApplyMin2(DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result);
+	void cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result);
 
 	inline std::vector<int> getVarsIndex(BDD *bdd);
 	inline std::vector<int> getVarsIndex(ADD *bdd);
@@ -171,9 +171,7 @@ private:
 	 */
 	ADD createTargetSet(BDD *system, int no_states, int no_inputs, std::vector<int> target_set);
 
-	//! Swaps the index of x and x' (or y) of the BDD DD.
-	inline void swapXandX_(BDD *DD, std::vector<ADD> *x, std::vector<ADD> *x_);
-
+	//!
 	inline unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
 
 	/* APtoSetSP helper functions */

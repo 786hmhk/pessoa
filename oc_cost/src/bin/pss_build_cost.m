@@ -30,7 +30,7 @@ if verbose==3
 end
 
 
-filename_cost = strcat(system_name, 'Costs'); 
+filename_cost = strcat(system_name, 'Costs');
 
 nbatch=N_sims;
 
@@ -49,6 +49,9 @@ pessoa_cost2add(filename_cost,minc,maxc,verbose);
 % Create the Cost Adjacency Matrix and compute the APSP.
 disp('Calculating the Deterministic APSP.');
 pessoa_dsp(system_name, verbose);
+
+disp('Running Controller.mex');
+pessoa_controller(system_name, verbose);
 
 
 if verbose==3
