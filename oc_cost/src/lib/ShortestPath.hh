@@ -138,6 +138,7 @@ private:
 	inline std::vector<int> getVarsIndex(ADD *bdd);
 
 	inline BDD createMinterm(std::vector<BDD> *x, int node);
+	inline BDD createMinterm(std::vector<BDD> *x, std::vector<BDD> *y, unsigned int node_x, unsigned int node_y);
 	inline ADD createMinterm(std::vector<ADD> *x, int node);
 	inline ADD createMinterm(std::vector<ADD> *x, std::vector<ADD> *y, int x_node, int y_node);
 
@@ -148,28 +149,6 @@ private:
 	inline void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<ADD> *x, std::vector<ADD> *x_);
 
 	inline BDD createXstates(int no_states);
-
-	//! Create the ADD Target set W given the set of states of W as a vector<int>.
-	/**
-	 * Method takes as input the Systems ADD or any other ADD that contains the System's variables,
-	 * the vector containing the states of the target set and returns the ADD of the target set.
-	 * @param system is the pointer to the System's ADD or any other ADD that contains the System's variables.
-	 * @param no_states is the number of states of the System.
-	 * @param target_set is the vector containing the states of the target set W.
-	 * @return The ADD of the target set W.
-	 */
-	ADD createTargetSet(ADD *system, int no_states, int no_inputs, std::vector<int> target_set);
-
-	//! Create the ADD Target set W given the set of states of W as a vector<int>.
-	/**
-	 * Method takes as input the Systems BDD, the vector containing the states
-	 * of the target set and returns the ADD of the target set.
-	 * @param system is the pointer to the System's BDD.
-	 * @param no_states is the number of states of the System.
-	 * @param target_set is the vector containing the states of the target set W.
-	 * @return The ADD of the target set W.
-	 */
-	ADD createTargetSet(BDD *system, int no_states, int no_inputs, std::vector<int> target_set);
 
 	//!
 	inline unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
@@ -264,27 +243,6 @@ public:
 	 */
 	void APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W);
 
-	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports only deterministic transitions.
-	/**
-	 * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
-	 * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
-	 * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
-	 *
-	 * __Important Notice__:
-	 * - Memory should have been already allocated for the results (@param APSP_W and @param PA_W).
-	 * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
-	 * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (@param PA).
-	 *
-	 * @param APSP is the ADD containing the all-pairs shortest path values.
-	 * @param PA is the ADD containing the pointer array of the APSP.
-	 * @param W	is the desired target set. Nodes are expressed as integers.
-	 * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
-	 * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
-	 *        together with the PA ADD.
-	 * @see   FloydWarshall, APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
-	 */
-	void APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W);
-
 	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
 	void APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int no_states, int no_inputs);
 
@@ -323,8 +281,7 @@ public:
 	 */
 	bool Dddmp_cuddStore(ADD *f, char *fname, char *ddname = NULL, char **varnames = NULL, int *auxids = NULL, int mode = DDDMP_MODE_TEXT, Dddmp_VarInfoType varinfo = DDDMP_VARIDS, FILE *fp = NULL);
 
-//	BDD Dddmp_cuddBDDLoad(char *file, Dddmp_VarMatchType varMatchMode = DDDMP_VAR_MATCHIDS, char **varmatchnames = NULL, int *varmatchauxids = NULL, int *varcomposeids = NULL, int mode = DDDMP_MODE_DEFAULT, FILE *fp = NULL);
-//	ADD Dddmp_cuddADDLoad(char *file, Dddmp_VarMatchType varMatchMode = DDDMP_VAR_MATCHIDS, char **varmatchnames = NULL, int *varmatchauxids = NULL, int *varcomposeids = NULL, int mode = DDDMP_MODE_DEFAULT, FILE *fp = NULL);
+	bool checkControllerDom(BDD *contrl, BDD *dom);
 
 };
 

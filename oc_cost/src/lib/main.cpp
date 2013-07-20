@@ -148,26 +148,35 @@ void test_actual(){
 	/* Files exists... now load them. */
 
 	// Initialize the Manager.
-	Cudd mgr(0, 0);
+	Cudd mgr(0, 0); //getNoBits(nstates)
 	// Set background
 	mgr.SetBackground(mgr.plusInfinity());
 	//
+//	mgr.DisableGarbageCollection();
 
 	// Create .dot file
 	std::vector<BDD> nodes_bdd;
 	std::vector<ADD> nodes_add;
 	FILE *outfile;
 
-	BDD S  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotor.bdd", NULL));
+//	BDD S  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotor.bdd", NULL));
 
-	BDD CS  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController_dom.bdd", NULL));
+	BDD CS        = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController.bdd", NULL));
+	BDD Contr_dom = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController_dom.bdd", NULL));
 
-	// Create .dot file
-	nodes_bdd.push_back(S);
-	outfile = fopen("DCMotor.dot", "w");
-	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_bdd.clear();
+//	// Create .dot file
+//	nodes_bdd.push_back(S);
+//	outfile = fopen("DCMotor.dot", "w");
+//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
+
+//	// Create .dot file
+//	nodes_bdd.push_back(Contr_dom);
+//	outfile = fopen("DCMotorController_dom.dot", "w");
+//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
 
 	ADD SC = ADD(mgr, Dddmp_cuddAddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorCosts.add", NULL));
 
@@ -190,13 +199,20 @@ void test_actual(){
 
 	/* Create the Shortest Path Object */
 	printf("Creating SP Object ...\n");
-	ShortestPath sp(&mgr, &S, nstates, ninputs); // optimized
+	ShortestPath sp(&mgr, &CS, nstates, ninputs); // optimized
 //	ShortestPath sp(&mgr);
 
-//	/* Create the Cost Adjacency Matrix */
+//	/* */
+//	printf("Checking Controller domain...\n");
+//	sp.checkControllerDom(&CS, &Contr_dom);
+
+	/* Create the Cost Adjacency Matrix */
 	printf("Creating Cost Adjacency Matrix ...\n");
 	ADD AG;
-	AG = sp.createCostAdjacencyMatrix(&S, &SC, nstates, ninputs);
+	AG = sp.createCostAdjacencyMatrix(&CS, &SC, nstates, ninputs);
+
+	printf(" ***Checking createCostAdjacencyMatrix...***\n");
+	mgr.DebugCheck();
 
 
 	// Create .dot file
@@ -211,6 +227,12 @@ void test_actual(){
 	ADD APSP;
 	ADD PA;
 	sp.FloydWarshall(&AG, &APSP, &PA);
+
+	printf(" ***Checking FloydWarshall...***\n");
+//	mgr.CheckKeys();
+	mgr.DebugCheck();
+
+
 
 	// Create .dot file
 	nodes_add.push_back(APSP);
@@ -231,6 +253,9 @@ void test_actual(){
 	ADD PA_W;
 	sp.APtoSetSP(&APSP, &PA, &W, &APSP_W, &PA_W);
 
+	printf(" ***Checking APtoSetSP... ***\n");
+	mgr.DebugCheck();
+
 
 	// Create .dot file
 	nodes_add.push_back(APSP_W);
@@ -249,10 +274,12 @@ void test_actual(){
 	/* Create the Controller. */
 	BDD controller = sp.createControllerBDD(&CS, &PA, &PA_W);
 
-	sp.Dddmp_cuddStore(&controller, "DCMotorController_dom_SP.bdd");
+	printf(" ***Checking createControllerBDD... ***\n");
+	mgr.DebugCheck();
+
+	sp.Dddmp_cuddStore(&controller, "DCMotorController_SP.bdd");
 
 	printf("Actual test END\n");
-
 }
 
 
@@ -288,8 +315,8 @@ void example_DSP(){
 	/************************ Define the System ******************************/
 
 	// Number of states/inputs
-	no_states = 7;
-	no_inputs = 5;
+	no_states = 9;
+	no_inputs = 9;
 
 	state_costs = new int[no_states];
 
@@ -308,6 +335,8 @@ void example_DSP(){
 	state_costs[4] = 1;
 	state_costs[5] = 1;
 	state_costs[6] = 3;
+	state_costs[7] = 7;
+	state_costs[8] = 7;
 
 	// Define the System in terms of transitions. (x,u,x')
 	// Important: Only deterministic transitions!
@@ -327,8 +356,17 @@ void example_DSP(){
 	+ TRANSITION(5,0,5)     \
 	+ TRANSITION(6,1,5)     \
 	+ TRANSITION(6,2,6)		\
-	+ TRANSITION(0,3,0)		\
-	+ TRANSITION(1,1,1)
+	+ TRANSITION(1,1,1)     \
+	+ TRANSITION(3,7,4)     \
+	+ TRANSITION(4,7,3)     \
+	+ TRANSITION(3,8,1)     \
+	+ TRANSITION(1,8,0)     \
+	+ TRANSITION(0,7,5)		\
+	+ TRANSITION(3,6,0)		\
+	+ TRANSITION(7,6,8)		\
+	+ TRANSITION(8,6,7)		\
+	+ TRANSITION(5,7,0)
+
 
 
 
@@ -346,8 +384,9 @@ void example_DSP(){
 	 */
 
 	// Give the Target Set W.
+	target_set.push_back(0);
 	target_set.push_back(5);
-	target_set.push_back(6);
+//	target_set.push_back(6);
 
 	/************************************************************************/
 
@@ -418,12 +457,12 @@ void example_DSP(){
 	W = getTargetSet(&mgr, no_states, target_set);
 	BDD W_normal = W;
 
-//	// Create .dot file
-//	nodes_bdd.push_back(W);
-//	outfile = fopen("System_TargetSet_W.dot", "w");
-//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_bdd.clear();
+	// Create .dot file
+	nodes_bdd.push_back(W);
+	outfile = fopen("System_TargetSet_W.dot", "w");
+	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
 
 
 	/* Find the All-pair Shortest Path to  a Set. */
@@ -763,7 +802,7 @@ void get_S_cost_x(Cudd *mgr, ADD *C, int no_states, int no_inputs, int *costs){
 		state = i;
 		minterm = one;
 
-		for(j = no_state_vars - 1; j >= 0; j--){
+		for(j = 0; j < no_state_vars; j++){
 
 			if (state & 0x01){
 				temp = minterm * x_[j];

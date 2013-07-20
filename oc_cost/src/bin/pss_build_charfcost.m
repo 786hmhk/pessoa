@@ -1,21 +1,23 @@
 function [set_state_array state_cost_array nstates] = pss_build_charfcost(params_symb,state_array,nbatch)
 
 %
-% Constructs a symbolic (ROBDD) representation for a set given a characteristic
-% function defined in "pss_cost_def.m" by the user.
+%  function [set_state_array state_cost_array nstates] = pss_build_charfcost(params_symb,state_array,nbatch)
+%
+%  Constructs a symbolic (ADD) representation for a states in the state space of the system
+%  given a characteristic function defined in "pss_cost_def.m" by the user.
 %   
-% INPUTS: params_symb   - data structure containing discretization information
-%                         (see online documentation);
-%         state_array   - array describing a hyperbox containing the target set
-%						  described by the characteristic function;
-%         size_batch    - size of computation batches to be used (see online
-%                         documentation);
+%      INPUTS: params_symb   - data structure containing discretization information
+%                              (see online documentation);
+%              state_array   - array describing a hyperbox containing the whole state space.
+%              size_batch    - size of computation batches to be used (see online
+%                              documentation);
 %
-% OUTPUT: set_state_array - array containing states belonging to target set 
-%			    (corresponding with the characteristic function);
-%         nstates	  - total number of states in the target set.
+%      OUTPUT: set_state_array  - array containing states belonging to target set 
+%	                          (corresponding with the characteristic function);
+% 	       state_cost_array - array containing the costs of each state of the state space.
+%              nstates          - total number of states in the state space.
 %
-% Anna Davitian <davitian@ee.ucla.edu>, UCLA CyPhyLab 2009.
+%  Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>, DCSC - TU Delft, 2013
 
 % n is the number of states not in target set (initialized to entire state space)
 n=0;

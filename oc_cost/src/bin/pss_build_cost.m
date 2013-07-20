@@ -1,16 +1,16 @@
 function pss_build_cost(system_name, N_sims, verbose)
 
 %
-%   function pss_build_cost(system_name, N_sims, verbose)
+%  function pss_build_cost(system_name, N_sims, verbose)
 %
-%   Assigns a cost value to each state the system and the result is stored in an ADD. The cost of each state must be 
-%	defined in the pss_cost_def.m. See online documentation on how to properly write the pss_cost_def.m script. 
+%  Assigns a cost value to each state the system and the result is stored in an ADD. 
+%  The cost of each state must be defined in the pss_cost_def.m. 
+%  See online documentation on how to properly write the pss_cost_def.m script. 
 %   
-%       INPUTS: system_name   - name of system for which this set will be
-%                               used (used to inherit params_symb
-%                               structure).
-%               N_sims        - size of batches to use in the construction
-%               verbose       - Verbose level 0 (minimal), 1 (extra info), 2 (1+plots, just 2D systems), 3 (debug mode) 
+%      INPUTS: system_name   - name of system for which this set will be
+%                              used (used to inherit params_symb structure).
+%              N_sims        - size of batches to use in the construction
+%              verbose       - Verbose level 0 (minimal), 1 (extra info), 2 (1+plots, just 2D systems), 3 (debug mode) 
 %
 %
 %   Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>, DCSC - TU Delft, 2013
@@ -50,8 +50,8 @@ pessoa_cost2add(filename_cost,minc,maxc,verbose);
 disp('Calculating the Deterministic APSP.');
 pessoa_dsp(system_name, verbose);
 
-disp('Running Controller.mex');
-pessoa_controller(system_name, verbose);
+%disp('Running Controller.mex');
+%pessoa_DPController(system_name, verbose);
 
 
 if verbose==3
