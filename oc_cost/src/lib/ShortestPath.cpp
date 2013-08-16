@@ -130,8 +130,6 @@ ShortestPath::~ShortestPath() {
 } /* ~ShortestPath */
 
 
-
-
 //! Create the Cost Adjacency Matrix of a given System. (Deterministic System)
 /**
  * Given the System's BDD and the cost of each state, as an ADD, this method constructs the
@@ -212,7 +210,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 	for (unsigned k = (*bdd_u)[0].getNode()->index; k < (*bdd_x_)[0].getNode()->index; k++){
 		existental[k] = 1;
 	}
-	for (unsigned k = (*bdd_x_)[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize() - 1); k++){
+	for (unsigned k = (*bdd_x_)[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
 		existental[k] = 2;
 	}
 
@@ -767,182 +765,110 @@ inline void ShortestPath::APtoSetSPrelax(){
 }
 
 //!
-inline bool ShortestPath::operatorXUsz(BDD *Q, BDD *XUsz, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
+inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
 
-	bool empty = true;
-	bool valid = false;
 
-	int i,j,k;
-	int temp_k;
-
-	BDD Q_swapped;
-	BDD bdd_minterm_x, bdd_minterm_u, bdd_minterm_x_, system_rstct, system_rstct_x;
+	BDD Q_swapped, Z_swapped;
+	BDD system_rstct_Z, system_rstct_ZW, system_rstct_ZWu;
+	BDD rg_ns_xux_;
 
 
 	//
 	Q_swapped = Q->SwapVariables(*bdd_x, *bdd_x_);
-	system_rstct = system_bdd->Restrict(~Q_swapped);
+	Z_swapped = Z->SwapVariables(*bdd_x, *bdd_x_);
 
 
-	// If there are no predecessors there is no point looking for the inputs.
-	if (system_rstct.IsZero()){
-		return true;
+	// Filter-out the states that do not have a transition to Z.
+	system_rstct_Z  = system_bdd->Restrict(Z_swapped);
+	// Filter-out the states that belong to the W set. (They are already in the W set :) )
+	system_rstct_ZW = system_rstct_Z & (~(*W));
+	// With this trick, we are going to find out if the states that we have so far all satisfy
+	// the reachability game. Namely if all the non-deterministic transitions end up in the Z set
+	// This found by the intersection of the system with the above found states: System \cap system_rstct_ZW
+	// So, in this case we are going to expose all inputs and then...
+	system_rstct_ZWu = (*system_bdd) & system_rstct_ZW;
+
+	// We are going to see which states dot not satisfy the reachability game.
+	// These are the intersection of the system_rstct_ZWu with all the states that are not in the union of Z and W:
+	// system_rstct_ZWu /cap (Z /cup W)
+	rg_ns_xux_ = system_rstct_ZWu & (~(Z_swapped + (*W_swapped)));
+
+
+	// Now we know which state/input does not satisfy the reachability game. We only have to filter-out the x' of the BDD.
+	// Get rid of x'. Keep only "bad" x and u.
+	int existental[mgr_cpp->ReadSize()];
+	for (unsigned k = 0; k < (*bdd_u)[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = (*bdd_u)[0].getNode()->index; k < (*bdd_x_)[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = (*bdd_x_)[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
+		existental[k] = 1;
 	}
 
-	*XUsz = mgr_cpp->bddZero();
+	DdNode *cube_array  = Cudd_CubeArrayToBdd(mgr,existental);
+	BDD rg_ns_x = rg_ns_xux_.ExistAbstract(BDD(*mgr_cpp, cube_array), 0);
 
-	// Check the inputs.
-	/* Iterate over all states. */
-	for (i = no_states - 1; i >= 0; i--){
 
-		// Create the x minterm.
-		bdd_minterm_x = createMinterm(bdd_x,i);
+	// Now, remove undesired states. This is basically the BDD with the desired (x,u). :)
+	BDD XUsz = system_rstct_ZW & (~rg_ns_x);
 
-		// Restrict the System's BDD given that state.
-		system_rstct_x = system_rstct.Restrict(bdd_minterm_x);
 
-		// if state not exists...
-		if (system_rstct_x.IsZero()){
+	// Testing - delete
+	printf("Valid states - inputs:\n");
+	for (unsigned int i = 0; i < no_states; i++){
+
+		BDD XUsz_rstr_x = XUsz.Restrict(createMinterm(bdd_x, i));
+
+		if (XUsz_rstr_x.IsZero()){
 			continue;
 		}
 
-		// states in Z do not count... exlude them of course :)
-		if ((Q->Restrict(bdd_minterm_x)).IsZero()){
-			continue;
-		}
-
-
-		/* Iterate over all possible inputs */
-		for (j = no_inputs - 1; j >=0 ; j--){
-
-			// Create the u minterm.
-			bdd_minterm_u = createMinterm(bdd_u,j);
-
-			// if inputs not exists...
-			if ((system_rstct_x.Restrict(bdd_minterm_u)).IsZero()){
+		for (unsigned j = 0; j < no_inputs; j++){
+			if(XUsz_rstr_x.Restrict(createMinterm(bdd_u, j)).IsZero()){
 				continue;
 			}
-
-
-			BDD system_rstct_xu = system_bdd->Restrict(bdd_minterm_x);
-			system_rstct_xu = system_rstct_xu.Restrict(bdd_minterm_u);
-
-			/* Iterate over all possible end states. */
-			for (k = no_states - 1; k >= 0; k--){
-
-				// Create the x' minterm.
-				bdd_minterm_x_ = createMinterm(bdd_x_,k);
-
-				// if end state not exists...
-				if ((system_rstct_xu.Restrict(bdd_minterm_x_)).IsZero()){
-					continue;
-				}
-
-//				printf("System: (%d,%d,%d)\n",i,j, k);
-				valid = true;
-				temp_k = k;
-
-				// needs also to belong to the Z set...
-				if (((~Q_swapped).Restrict(bdd_minterm_x_)).IsZero()){
-					valid = false;
-					break;
-				}
-			}
-
-			if (valid){
-				valid = false;
-				printf("(%d,%d,%d)\n", i, j, temp_k);
-				*XUsz += bdd_minterm_x.Ite(bdd_minterm_u, mgr_cpp->bddZero());
-			}
-
+			printf("(%d,%d)\n",i,j);
 		}
 	}
 
-//	for (int i=no_states-1; i >= 0; i--){
-//		BDD test = XUsz->Restrict(createMinterm(bdd_x,i));
-//		if (!(test.IsZero())){
-//			for (int j = no_inputs -1; j >=0; j--){
-//				if (!(test.Restrict(createMinterm(bdd_u,j))).IsZero()){
-//					printf("::(%d,%d)\n", i, j);
-//				}
-//			}
-//		}
-//	}
 
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	FILE *outfile;
 
-//	// Create .dot file
-//	std::vector<BDD> nodes_bdd;
-//	nodes_bdd.push_back(*XUsz);
-//	FILE *outfile;
-//	outfile = fopen("zzz.dot", "w");
-//	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_bdd.clear();
+	nodes_bdd.push_back(system_rstct_ZWu);
+	outfile = fopen("system_rstct_ZWu.dot", "w");
+	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
 
+	nodes_bdd.push_back(rg_ns_xux_);
+	outfile = fopen("rg_ns_xux_.dot", "w");
+	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
 
-	return empty;
+	nodes_bdd.push_back(rg_ns_x);
+	outfile = fopen("rg_ns_x.dot", "w");
+	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+	nodes_bdd.push_back(XUsz);
+	outfile = fopen("XUsz.dot", "w");
+	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
+
+	return XUsz;
 }
 
-//!
-inline DdNode *ShortestPath::addFindMin(ADD *f, int *position){
-	int track_t = 0;
-	int track_e = 0;
-	*position = 0;
-	return addFindMinRecur(f->getNode(), position, &track_t, &track_e);
-}
 
-//! Finds the minimum of an ADD and returns it decoded position.
-/**
- * Based on the Cudd_addFindMin() function of the CUDD Library.
- * @param f
- * @param position
- * @param track
- * @return
- */
-inline DdNode *ShortestPath::addFindMinRecur(DdNode *f, int *position, int *track_t, int *track_e){
-
-	printf("addFindMin, track_t=%d  - track_e=%d\n", *track_t, *track_e);
-
-	DdNode *t, *e, *res;
-
-	statLine(mgr);
-
-	if (cuddIsConstant(f)) {
-		return (f);
-	}
-
-//	res = cuddCacheLookup1(dd, Cudd_addFindMin, f);
-//	if (res != NULL) {
-//		return (res);
-//	}
-
-	*track_t = (*track_t << 1) + 1;
-	t = addFindMinRecur(cuddT(f), position, track_t, track_e);
-	if (t == DD_MINUS_INFINITY(mgr))
-		return (t);
-
-	*track_e = *track_t - 1;
-	e = addFindMinRecur(cuddE(f), position, track_t, track_e);
-
-//	res = (cuddV(t) <= cuddV(e)) ? t : e;
-
-	if (cuddV(t) <= cuddV(e)){
-		res = t;
-		*position = *track_t;
-	}
-	else{
-		res = e;
-		*position = *track_e;
-	}
-
-	printf("position: %d\n", *position);
-//	cuddCacheInsert1(dd, Cudd_addFindMin, f, res);
-
-	return (res);
-}
 
 //! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
-void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int no_states, int no_inputs){
+void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, ADD *PA_W, unsigned int no_states, unsigned int no_inputs){
 	printf("ShortestPath::APtoSetSP (ND)\n");
 
 
@@ -953,6 +879,8 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int
 	// ADD system variables
 //	std::vector<ADD> *add_x;
 //	std::vector<ADD> *add_x_;
+
+	unsigned int left_states;
 
 #ifdef ENABLE_TIME_PROFILING
 	long long start_time = get_usec();
@@ -996,13 +924,20 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int
 	// The set Xz \subseteq X that contains the states that guarantee a transitions to Z.
 	BDD XUz;
 
+	BDD W_swapped = W->SwapVariables(*bdd_x, *bdd_x_);
+
+
+
 	bool empty = true;
 
+	// Priority queue to store the state number with the minimum cost.
+	std::priority_queue<pair_double_int, std::vector<pair_double_int>, std::greater<pair_double_int> > pq_mincost;
 
 	/*
 	 * Initiliaze the Algorithm
 	 */
 
+	left_states = no_states;
 
 	X = createXstates(no_states);
 	// Initialize the shortest path cost function. (Dw)
@@ -1011,37 +946,62 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int
 	*PA_W   = mgr_cpp->addZero();
 	// Q = X
 	Q = X;
+	// Z = 0
+	Z = mgr_cpp->bddZero();
 
 	//
 	X = X.SwapVariables(*bdd_x, *bdd_x_);
 
+	// Create the priority queue.
+	for (unsigned int i = 0; i < no_states; i++){
 
-//	ADD ooo = APSP_W->Minimum();
+		if (W->Restrict(createMinterm(bdd_x,i)).IsZero()){
+			pq_mincost.push(std::make_pair(0xFFFF, i));
+			continue;
+		}
+
+		pq_mincost.push(std::make_pair(0.0, i));
+	}
+
+//	while (!pq_mincost.empty()) {
+//	  printf("%d %f\n", pq_mincost.top().second, pq_mincost.top().first);
+//	  pq_mincost.pop();                    // Remove lowest priority state
+//	}
+
 
 	/*
 	 * Main Loop. Break when Q != empty.
 	 */
 
-	for(;;){
+	while(left_states){
 
-		// x = min{Dw(x) | x \in Q}
-		x_temp = createMinterm(bdd_x, 3);
+		// Get the state with the minimum cost: x = min{Dw(x) | x \in Q}
+		x_temp = createMinterm(bdd_x, pq_mincost.top().second);
+		printf("Adding state %d to Z. Cost: %f\n", pq_mincost.top().second, pq_mincost.top().first);
+		pq_mincost.pop(); // Remove lowest priority state
+		// If it is already resolved... continue. (Priority Queue unpleasant property)
+		if (!(Z.Restrict(x_temp).IsZero())){
+			continue;
+		}
+
 		// Z = Z \cup x
+		Z = Z + x_temp;
 
 		// Q = Q\x (set minus)
-		Q = Q - x_temp - createMinterm(bdd_x, 4);
+		Q = Q - x_temp;
 
-		// Operator Xsz.
-		empty = operatorXUsz(&Q, &XUz, bdd_x, bdd_u, bdd_x_);
+		// Operator XUsz. Implements both the Xsz and Usz operators.
+		XUz = operatorXUsz(W, &W_swapped, &Q, &Z, bdd_x, bdd_u, bdd_x_);
 
 		//
 		if (!empty){
 
 		}
-		else{
-			break;
-		}
 
+		//break; //delete
+		left_states--;
+
+		break;
 	}
 
 
@@ -1057,14 +1017,13 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, int
 	fclose(outfile);
 	nodes_add.clear();
 
-//	// Create .dot file
-//	std::vector<BDD> nodes_bdd;
-//	nodes_bdd.push_back(Q);
-//	FILE *outfile;
-//	outfile = fopen("Q.dot", "w");
-//	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
-//	fclose(outfile);
-//	nodes_bdd.clear();
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	nodes_bdd.push_back(Z);
+	outfile = fopen("Z.dot", "w");
+	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_bdd.clear();
 
 
 
