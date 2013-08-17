@@ -1,0 +1,77 @@
+#---------------------------------------------------------------------------#
+# Makefile for Pessoa							     #
+# University of California, Los Angeles                                      #
+# Version @VERSION@, June, 2009	                                     	     #
+#----------------------------------------------------------------------------#
+
+PACKAGE     = @PACKAGE@
+VERSION     = @VERSION@
+INSTALL_DIR = @INSTALL@
+
+#--------------------------- CONFIGURE --------------------------------------#
+MATLAB	       = @MATLAB_DIR@
+SYSTEMEX       = @MATLAB_MEXSYSTEM@
+LDFLAGS_LIB    = -arch @R_PLATFORM_ARCH@
+#----------------------------------------------------------------------------#
+
+VERSION = @VERSION@
+PACKAGE = @PACKAGE@
+
+#MATLAB_@MATLAB_LDCXXEXTENSION@
+#MATLAB_@MATLAB_LDEXTENSION@
+#
+MATLAB_LDCXXEXTENSION = .mex
+MATLAB_LDEXTENSION    = .mex
+DIR           = ../..
+CUDD_DIR      = cudd-2.5.0
+SRC_DIRS      = library Pessoa_abstract Pessoa_control Pessoa_design utils
+MAKEARG       = 'MATLABHOME=$(MATLAB)' 'CUDD_DIR=../../$(CUDD_DIR)' 'SYSTEMEX=$(SYSTEMEX)' 'LDFLAGS_LIB=$(LDFLAGS_LIB)'
+
+
+
+.PHONY: all clean utils cudd install
+
+all:    cudd pessoa.o pessoa_abstract pessoa_design pessoa_controller utils
+
+clean:
+	$(MAKE) $@ -C $(CUDD_DIR)
+	-rm -f ./library/src/pessoa.o ./utils/bin/*$(MATLAB_LDEXTENSION)* ./Pessoa_abstract/bin/*$(MATLAB_LDEXTENSION)* ./Pessoa_design/bin/*$(MATLAB_LDEXTENSION)* ./Pessoa_control/bin/*$(MATLAB_LDEXTENSION)*
+	-rm -f ./library/src/pessoa.o ./utils/bin/*$(MATLAB_LDCXXEXTENSION)* ./Pessoa_abstract/bin/*$(MATLAB_LDCXXEXTENSION)* ./Pessoa_design/bin/*$(MATLAB_LDCXXEXTENSION)* ./Pessoa_control/bin/*$(MATLAB_LDCXXEXTENSION)*
+
+distclean: clean
+	-@rm -rf $(INSTALL_DIR)
+	$(MAKE) $@ -C $(CUDD_DIR)
+
+cudd:
+	$(MAKE) -C $(CUDD_DIR) 
+
+pessoa.o: cudd
+	$(MAKE) $(MAKEARG) -C ./library/src   
+
+pessoa_abstract: pessoa.o 
+	$(MAKE) $(MAKEARG) -C ./Pessoa_abstract/src   
+
+pessoa_design: pessoa.o 
+	$(MAKE) $(MAKEARG) -C ./Pessoa_design/src   
+
+pessoa_controller: pessoa.o
+	$(MAKE) $(MAKEARG) -C ./Pessoa_control/src   
+
+utils: pessoa.o
+	$(MAKE) $(MAKEARG) -C ./utils/src
+
+install:
+	@echo "Installing Pessoa v$(VERSION) toolbox to the ${INSTALL_DIR} folder..."
+	@mkdir -p ${INSTALL_DIR}
+	@cp ./Pessoa_abstract/bin/* ./${INSTALL_DIR}/;
+	@cp ./Pessoa_control/bin/* ./${INSTALL_DIR}/;
+	@cp ./Pessoa_design/bin/* ./${INSTALL_DIR}/;
+	@cp ./utils/bin/* ./${INSTALL_DIR}/;
+	@cp ./library/Matlab/* ./${INSTALL_DIR}/;
+	@echo "Installation success!\nNow you are ready to use Pessoa. To use pessoa add to your matlab path the folder ${INSTALL_DIR}.\nFor a tutorial on how to use Pessoa visit our web: http://www.cyphylab.ee.ucla.edu/pessoa"
+
+
+##
+@MAINTAINERS_MAKEFILE_TARGETS@
+
+
