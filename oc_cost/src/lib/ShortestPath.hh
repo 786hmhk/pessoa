@@ -77,6 +77,8 @@
 
 //!
 typedef std::pair<double, unsigned int> pair_double_int;
+//! Priority queue to store the state number with the minimum cost. Used in the Relax method.
+typedef std::priority_queue<pair_double_int, std::vector<pair_double_int>, std::greater<pair_double_int> > pq_relax;
 
 //!
 struct bdd_constNode_pos {
@@ -164,7 +166,7 @@ private:
 
 
 	inline BDD operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
-	inline void APtoSetSPrelax();
+	inline void relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_relax *pq_mincost, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_, std::vector<ADD> *add_x, std::vector<ADD> *add_x_);
 
 
 #ifdef ENABLE_TIME_PROFILING
@@ -250,7 +252,7 @@ public:
 	void APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W);
 
 	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
-	void APtoSetSP(BDD *S, ADD *SC, BDD *W,ADD *APSP_W, ADD *PA_W, unsigned int no_states, unsigned int no_inputs);
+	void APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, unsigned int no_states, unsigned int no_inputs);
 
 	//!
 	BDD createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W);
