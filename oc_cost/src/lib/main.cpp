@@ -65,8 +65,8 @@ int main(int argc, char* argv[]) {
 	printf("Main.\n\n");
 
 //	example_DSP();
-//	example_NDSP();
-	test_actual();
+	example_NDSP();
+//	test_actual();
 
 	printf("\n\nExiting Program...\n");
 
@@ -341,6 +341,8 @@ void example_DSP(){
 	// Define the System in terms of transitions. (x,u,x')
 	// Important: Only deterministic transitions!
 
+	/*
+
 	#define SYSTEM_TRANSITIONS \
 		\
 	  TRANSITION(0,0,1)		\
@@ -367,7 +369,7 @@ void example_DSP(){
 	+ TRANSITION(8,6,7)		\
 	+ TRANSITION(5,7,0)
 
-
+*/
 
 
 
@@ -573,18 +575,19 @@ void example_NDSP(){
 	state_costs[6] = 7;
 
 
-	/*
+
 	// Define the System in terms of transitions.
 	#define SYSTEM_TRANSITIONS \
 							\
 	  TRANSITION(0,2,1)		\
-	+ TRANSITION(0,2,6)		\
+	+ TRANSITION(0,1,6)		\
 	  	  	  	  	  	  	\
 	+ TRANSITION(1,1,3)		\
 	  	  	  	  	  	    \
 	+ TRANSITION(2,0,1)		\
 	+ TRANSITION(2,0,3)		\
 	+ TRANSITION(2,1,5)		\
+	+ TRANSITION(2,2,2)		\
 	  	  	  	  	  	    \
 	+ TRANSITION(3,3,4)		\
 	  	  	  	  	  	    \
@@ -593,8 +596,13 @@ void example_NDSP(){
 	+ TRANSITION(5,1,4)		\
 	  	  	  	  	  	  	\
 	+ TRANSITION(6,0,0)		\
-	+ TRANSITION(6,0,2)
-*/
+	+ TRANSITION(6,0,2)		\
+							\
+	+ TRANSITION(2,3,4)     \
+	+ TRANSITION(2,0,4)     \
+	+ TRANSITION(2,1,4)     \
+	+ TRANSITION(4,0,3)     \
+
 	// Give the Target Set W.
 	target_set.push_back(4);
 	target_set.push_back(5);
@@ -648,7 +656,7 @@ void example_NDSP(){
 
 	/* Find the All-pair Shortest Path to  a Set. */
 	ADD APSP_W;
-	ADD PA_W;
+	BDD PA_W;
 	sp.APtoSetSP(&S, &SC, &W, &APSP_W, &PA_W, no_states, no_inputs);
 
 //	ADD zzz = (~W).Add() * mgr.background();

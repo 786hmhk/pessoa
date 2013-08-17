@@ -786,16 +786,14 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 
 	double no_transitions, no_endStates;
 
-	unsigned int m;
-
 	bool found_sp = false;
 
 	bdd_zero = mgr_cpp->bddZero();
 
-	// Create .dot file
-	std::vector<BDD> nodes_bdd;
-	std::vector<ADD> nodes_add;
-	FILE *outfile;
+//	// Create .dot file
+//	std::vector<BDD> nodes_bdd;
+//	std::vector<ADD> nodes_add;
+//	FILE *outfile;
 
 
 	/* Iterate over all states. */
@@ -975,6 +973,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 
 	// Filter-out the states that belong to the W set. (They are already in the W set :) )
 	system_rstct_ZW = system_rstct_Zxu & (~(*W));
+//	system_rstct_ZW = system_rstct_Zxu;
 	// With this trick, we are going to find out if the states that we have so far all satisfy
 	// the reachability game. Namely if all the non-deterministic transitions end up in the Z set
 	// This found by the intersection of the system with the above found states: System \cap system_rstct_ZW
@@ -1075,6 +1074,32 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 	return XUsz;
 }
 
+//!
+void ShortestPath::initPA_W(BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
+	printf("ShortestPath::initPA_W\n");
+
+#ifdef ENABLE_TIME_PROFILING
+	long long start_time = get_usec();
+#endif
+
+	BDD PA_W_temp = W->Ite(*W_swapped, mgr_cpp->bddZero());
+
+	*PA_W = PA_W_temp & (*system_bdd);
+
+//	// Create .dot file
+//	std::vector<BDD> nodes_bdd;
+//	FILE *outfile;
+//	nodes_bdd.push_back(*PA_W);
+//	outfile = fopen("PA_W_init.dot", "w");
+//	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
+
+#ifdef ENABLE_TIME_PROFILING
+	/* Print execution time. */
+	printf("ShortestPath::initPA_W (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
+#endif
+}
 
 
 //! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
@@ -1152,6 +1177,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 	*APSP_W = (~(*W)).Add() * mgr_cpp->background();
 	// Initialize the pointer function. (Pw)
 	*PA_W   = mgr_cpp->bddZero();
+	initPA_W(W, &W_swapped, PA_W, bdd_x, bdd_u, bdd_x_);
 	// Q = X
 	Q = X;
 	// Z = 0
@@ -1170,11 +1196,6 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 		pq_mincost.push(std::make_pair(0.0, i));
 	}
-
-//	while (!pq_mincost.empty()) {
-//	  printf("%d %f\n", pq_mincost.top().second, pq_mincost.top().first);
-//	  pq_mincost.pop();                    // Remove lowest priority state
-//	}
 
 
 	/*
