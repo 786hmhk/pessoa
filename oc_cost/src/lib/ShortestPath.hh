@@ -1,7 +1,7 @@
 /**
  * @file
  * @author Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>
- * @version 0.61
+ * @version 0.9
  *
  * @section LICENSE
  *
@@ -60,6 +60,17 @@
 // C++ Lib
 #include "cuddObj.hh"
 
+//!
+//#define LSB_MSB
+#define MSB_LSB
+
+#ifdef LSB_MSB
+#undef MSB_LSB
+#endif
+#ifdef MSB_LSB
+#undef LSB_MSB
+#endif
+
 //! Enables or Disables the use of the cudd cache in some operations.
 //#define ENABLE_CACHE
 #define ENABLE_TIME_PROFILING
@@ -75,23 +86,14 @@
 //! Cache Tag for the cache used in cuddAddApplyRecurTrace method.
 #define DD_ADD_MINIMUM_TRACE_TAG		0x6d
 
-//!
+//! Stores the number of state and its corresponding shortest path value. Used in the priority queue.
 typedef std::pair<double, unsigned int> pair_double_int;
 //! Priority queue to store the state number with the minimum cost. Used in the Relax method.
 typedef std::priority_queue<pair_double_int, std::vector<pair_double_int>, std::greater<pair_double_int> > pq_relax;
 
-//!
-struct bdd_constNode_pos {
-  int position;
-  DdNode *const_node;
-};
-
-typedef struct bdd_constNode_pos min_result;
-
-//- Create the ADD of the target set W, given the set of states of W (@ref createTargetSet).
 
 //! This is the main class for generating the DD's used in optimal control.
-//! Supports only deterministic systems at the moment.
+//! Supports both deterministic and non-deterministic systems.
 /*!
 This class is used to construct the ADD containing the shortest path values
 from all states to the target set W and the ADD containing the actual path.
@@ -101,7 +103,8 @@ This class can be used to do the following:
 of each state (@ref createCostAdjacencyMatrix). Supports only Deterministic Systems.
 - Find the all-pair shortest path and the pointer array, given the Cost Adjacency Matrix
 (@ref FloydWarshall).
-- Find the shortest path form all-pairs to a given set W (@ref APtoSetSP). Supports only Deterministic Systems.
+- Find the shortest path form all-pairs to a given set W (@ref APtoSetSP). Supports both deterministic and non-deterministic systems.
+- Create a refined system, given the information on the shortest path (@ref createControllerBDD).
 */
 class ShortestPath {
 
@@ -127,6 +130,10 @@ private:
 
 	// System's BDD
 	BDD *system_bdd;
+
+	// Existental BDDs
+	BDD existental_xx_;
+	BDD existental_xu;
 
 
 	unsigned int getNoBits(unsigned int number);
@@ -159,11 +166,11 @@ private:
 
 	inline BDD createXstates(int no_states);
 
-	//!
-	inline unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
+	void createExistentalBDD();
 
 	/* APtoSetSP helper functions */
 
+	inline unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
 
 	inline BDD operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
 	void initPA_W(BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
@@ -205,11 +212,15 @@ public:
 	 */
 	virtual ~ShortestPath();
 
-	//! Create the ADD Target set W given the set of states of W as a vector<int>.
+	//! Create the Cost Adjacency Matrix of a given System. (Deterministic System)
 	/**
 	 * Given the System's BDD and the cost of each state, as an ADD, this method constructs the
 	 * Cost Adjacency Matrix of the System. This is done, by first extracting a valid transition
-	 * (x,u,x') and then attaching the corresponding cost of that transition c(x,u,x').
+	 * (x,u,x') and then attaching the corresponding cost of that transition c(x,u,x').\n
+	 *
+	 * __Important Notice__: This method assumes only deterministic systems. If for one input, more than
+	 * one end nodes exist, then only the first one encountered is being taken into account.
+	 *
 	 * @param system is the pointer to the System's BDD.
 	 * @param state_cost is the pointer to the ADD, describing the cost of each state of the system.
 	 * @param no_states is the number of states of the System.
@@ -220,15 +231,19 @@ public:
 
 	 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
 	/**
-	 * Method takes as input the Cost Adjacency Matrix of the System as an ADD and returns the all-pairs shortest
-	 * path values and the pointer array. To receive the return values, two ADD objects have to be passed as arguments.
-	 * Implements the well-known Floyd-Warshall algorithm.\n
-	 * __Important__: This method assumes that the arguments (ASPS, PA), which are used to pass the result,
-	 * have been already allocated. Empty pointers of these will result to an error!
-	 * @param AG is the pointer to the System's BDD.
-	 * @param APSP is the _allocated_ pointer to the ADD for returning the APSP cost values.
-	 * @param PA is the _allocated_ pointer to the ADD for returning the pointer array of the APSP.
-	 */
+	* Method takes as input the Cost Adjacency Matrix of the System as an ADD and returns the all-pairs shortest
+	* path values and the pointer array. To receive the return values, two ADD objects have to be passed as arguments.
+	* Implements the well-known Floyd-Warshall algorithm.\n
+	* __Important Notice__:
+	* - This method assumes that the arguments (ASPS, PA), which are used to pass the result,
+	* have been already allocated. Empty pointers of these will result to an error!
+	* - In the pointer array the value of the node is incremented by one. This is done because we use zero to denote that no intermediate node exist. So, when
+	* for example node 0 is being added to the pointer array for some minterm, then it will show up as 1.
+	* @param AG is the pointer to the System's BDD.
+	* @param APSP is the _allocated_ pointer to the ADD for returning the APSP cost values.
+	* @param PA is the _allocated_ pointer to the ADD for returning the pointer array of the APSP.
+	* @see createCostAdjacencyMatrix, AddOuterSumTrace, AddOuterSumRecurTrace
+	*/
 	void FloydWarshall(ADD *AG, ADD *APSP, ADD *PA);
 
 	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports only deterministic transitions.
@@ -248,14 +263,44 @@ public:
 	 * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
 	 * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
 	 *        together with the PA ADD.
-	 * @see   FloydWarshall, APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W)
+	 * @see   FloydWarshall, APtoSetSP, Cudd_addApplyMin2, cuddAddApplyMin2Recur
 	 */
 	void APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W);
 
 	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
+	/**
+	 * This method is used mainly to solve the non-deterministic shortest path problem. It is based on the reachability game that is performed by the operators \f$X_{S_{Z}}\f$ and \f$U_{S_{Z}}\f$ (operatorXUsz).
+	 * These operators point out the next valid state-input(s), i.e. the next candidate (with its valid inputs) for the Z set. That is the set that holds the states where the shortest path has been computed.
+	 * For each of these states the relax() function is called, which updates the shortest path value towards the target set and adds these states to a priority queue. Based on that queue the state with the
+	 * lowest cost value is added to the Z set and is marked as resolved. The process ends when all states have been resolved. \n
+	 * This method supports also deterministic systems.
+	 *
+	 *__Important Notice__: This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set @param W can been reached by all
+	 *						states of the system/controller.
+	 *
+	 * @param S is the pointer to the System's BDD.
+	 * @param SC is the pointer to the System's costs ADD.
+	 * @param W is the pointer to the target set.
+	 * @param APSP_W is the pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
+	 * @param PA_W is the pointer the will hold / will store the new refined system. (Is used to return the result)
+	 * @param no_states is the number of states of the system.
+	 * @param no_inputs is the number of inputs of the system.
+	 * @see operatorXUsz, relax
+	 */
 	void APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, unsigned int no_states, unsigned int no_inputs);
 
-	//!
+	//! Creates a BBD of the new refined controller in form of (x,u), based on the old one and the results of the Deterministic Shortest Path (@ref APtoSetSP).
+	/**
+	 * This method first checks how to get to the target node, by looking at the FW pointer array. If it is zero, it means that we have a direct link and nothing has to be done.
+	 * Otherwise it finds the next (subsequent) node towards the target set, by calling the findSequentNode() method. In any case, as soon as it finds a valid states it records also
+	 * the valid inputs. The final result is a BDD of the refined system in the form of (x,u).
+	 *
+	 * @param S a BDD of the initial system, i.e. controller that needs to be refined.
+	 * @param APSP_PA an ADD of the all-pairs to a target set shortest path values.
+	 * @param APSP_PA_W an ADD of the all-pairs to a target set shortest path pointer array.
+	 * @return a BDD of the refined system in the form of (x,u).
+	 * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_)
+	 */
 	BDD createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W);
 
 	//! Dumps the argument BDD to file.
@@ -290,8 +335,11 @@ public:
 	 */
 	bool Dddmp_cuddStore(ADD *f, char *fname, char *ddname = NULL, char **varnames = NULL, int *auxids = NULL, int mode = DDDMP_MODE_TEXT, Dddmp_VarInfoType varinfo = DDDMP_VARIDS, FILE *fp = NULL);
 
+	//! Experimental. No description.
 	bool checkControllerDom(BDD *contrl, BDD *dom);
 
+	//! Experimental. Checks whether the given system's BDD and the system costs ADD are in the right form or not. That is, if all given states are present.
+	void selftest(BDD *S, ADD *costs);
 };
 
 #endif /* SHORTESTPATH_H_ */

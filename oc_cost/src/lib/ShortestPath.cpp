@@ -1,7 +1,7 @@
 /**
  * @file
  * @author Athanasios Tasoglou <A.Tasoglou@student.tudelft.nl>
- * @version 0.61
+ * @version 0.9
  *
  * @section LICENSE
  *
@@ -105,6 +105,9 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
 	createVariables(vars_index, no_state_vars, no_input_vars, &bdd_x, &bdd_u, &bdd_x_);
 	createVariables(vars_index, no_state_vars, no_input_vars, &add_x, &add_x_);
 
+	// Create the Existental BDD(s).
+	createExistentalBDD();
+
 	// System is being analyzed this way.
 	this->system_analyzed = true;
 
@@ -112,11 +115,13 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
 	system_bdd = system;
 
 
+	printf("-\n");
 	printf("Self test:\n");
 	printf("No States Vars: %3d - No Inputs Vars: %3d\n", this->no_state_vars, this->no_input_vars);
 	printf("x  index begin: %3d - end: %3d\n", bdd_x[0].getNode()->index,  bdd_x[bdd_x.size()-1].getNode()->index);
 	printf("u  index begin: %3d - end: %3d\n", bdd_u[0].getNode()->index,  bdd_u[bdd_u.size()-1].getNode()->index);
 	printf("x' index begin: %3d - end: %3d\n", bdd_x_[0].getNode()->index, bdd_x_[bdd_x_.size()-1].getNode()->index);
+	printf("-\n");
 
 } /* ShortestPath */
 
@@ -202,20 +207,20 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 
 	ADD SC_swapped = state_cost->SwapVariables(*add_x, *add_x_);
 
-	// Get rid of the input u. Keep only x,x'.
-	int existental[mgr_cpp->ReadSize()];
-	for (unsigned k = 0; k < (*bdd_u)[0].getNode()->index; k++){
-		existental[k] = 2;
-	}
-	for (unsigned k = (*bdd_u)[0].getNode()->index; k < (*bdd_x_)[0].getNode()->index; k++){
-		existental[k] = 1;
-	}
-	for (unsigned k = (*bdd_x_)[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
-		existental[k] = 2;
-	}
 
-	DdNode *cube_array = Cudd_CubeArrayToBdd(mgr,existental);
-	BDD S = system->ExistAbstract(BDD(*mgr_cpp, cube_array), 0);
+//	ADD test = SC_swapped * system->Add();
+//
+//	// Create .dot file
+//	std::vector<ADD> nodes_add;
+//	FILE *outfile;
+//	nodes_add.push_back(test);
+//	outfile = fopen("test.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+
+	// Get rid of the input u. Keep only x,x'.
+	BDD S = system->ExistAbstract(existental_xx_, 0);
 
 	// Create the Cost Adjacency Matrix.
 	AG = ((mgr_cpp->background() * ((~S).Add())) + mgr_cpp->addOne()) * SC_swapped;
@@ -271,7 +276,13 @@ inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, int node){
 
 	minterm = one;
 
+#ifdef LSB_MSB
 	for (j = 0; j < (*x).size(); j++){
+#endif
+#ifdef MSB_LSB
+	for (j = (*x).size();;){
+		if (j==0) break; j--;
+#endif
 		if (node & 0x01){
 			temp = (*x)[j].Ite(minterm, zero);
 		}
@@ -298,7 +309,13 @@ inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, std::vector<BDD> *y,
 
 	minterm = one;
 
+#ifdef LSB_MSB
 	for (j = 0; j < (*x).size(); j++){
+#endif
+#ifdef MSB_LSB
+	for (j = (*x).size();;){
+		if (j==0) break; j--;
+#endif
 		if (node_x & 0x01){
 			temp = (*x)[j].Ite(minterm, zero);
 		}
@@ -344,7 +361,13 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, int node){
 
 	minterm = one;
 
+#ifdef LSB_MSB
 	for (j = 0; j < (*x).size(); j++){
+#endif
+#ifdef MSB_LSB
+	for (j = (*x).size();;){
+		if (j==0) break; j--;
+#endif
 		if (node & 0x01){
 			temp = minterm * (*x)[j];
 		}
@@ -384,7 +407,13 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y,
 
 	minterm = one;
 
+#ifdef LSB_MSB
 	for (j = 0; j < (*x).size(); j++){
+#endif
+#ifdef MSB_LSB
+	for (j = (*x).size();;){
+		if (j==0) break; j--;
+#endif
 		if (x_node & 0x01){
 			temp = minterm * (*x)[j];
 		}
@@ -395,7 +424,13 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y,
 		minterm = temp;
 		x_node >>= 1;
 	}
+#ifdef LSB_MSB
 	for (j = 0; j < (*y).size(); j++){
+#endif
+#ifdef MSB_LSB
+	for (j = (*y).size();;){
+		if (j==0) break; j--;
+#endif
 		if (y_node & 0x01){
 			temp = minterm * (*y)[j];
 		}
@@ -585,6 +620,39 @@ inline std::vector<int> ShortestPath::getVarsIndex(ADD *add){
 	return vars_index;
 } /* getVarsIndex */
 
+
+//! Initializes the necessary BDDs needed to perform various "Existental" operations.
+void ShortestPath::createExistentalBDD(){
+
+	// Get rid of x'. Keep only x and u.
+	int existental[mgr_cpp->ReadSize()];
+	for (unsigned k = 0; k < bdd_u[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_u[0].getNode()->index; k < bdd_x_[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_x_[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
+		existental[k] = 1;
+	}
+	DdNode *cube_array  = Cudd_CubeArrayToBdd(mgr,existental);
+	existental_xu = BDD(*mgr_cpp, cube_array);
+
+	// Get rid of u. Keep only x and x'.
+	for (unsigned k = 0; k < bdd_u[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_u[0].getNode()->index; k < bdd_x_[0].getNode()->index; k++){
+		existental[k] = 1;
+	}
+	for (unsigned k = bdd_x_[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
+		existental[k] = 2;
+	}
+	DdNode *cube_array1  = Cudd_CubeArrayToBdd(mgr,existental);
+	existental_xx_ = BDD(*mgr_cpp, cube_array1);
+
+} /* createExistentalBDD */
+
 //! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
 /**
  * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
@@ -602,7 +670,7 @@ inline std::vector<int> ShortestPath::getVarsIndex(ADD *add){
  * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
  * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
  *        together with the PA ADD.
- * @see   FloydWarshall, APtoSetSP(ADD *APSP, ADD *PA, std::vector<int> W, ADD *APSP_W, ADD *PA_W)
+ * @see   FloydWarshall, APtoSetSP, Cudd_addApplyMin2, cuddAddApplyMin2Recur
  */
 void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W){
 
@@ -739,7 +807,13 @@ inline BDD ShortestPath::createXstates(int no_states){
 		minterm = one;
 		node    = i;
 
-		for (j = 0; j < no_state_vars; j++){
+#ifdef LSB_MSB
+	for (j = 0; j < no_state_vars; j++){
+#endif
+#ifdef MSB_LSB
+	for (j = no_state_vars;;){
+			if (j==0) break; j--;
+#endif
 			if (node & 0x01){
 				temp = bdd_x[j].Ite(minterm, zero);
 			}
@@ -760,7 +834,7 @@ inline BDD ShortestPath::createXstates(int no_states){
 }
 
 
-//!
+//! This method "relaxes", i.e. updates the shortest path value and the pointer index of the states that are consideres as candidates for the Z set, i.e. the resolved set.
 inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_relax *pq_mincost, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_, std::vector<ADD> *add_x, std::vector<ADD> *add_x_){
 	printf("ShortestPath::relax\n");
 
@@ -781,10 +855,9 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 	ADD add_minterm_x;
 
 	unsigned int state_sp = 0xFFFF;
-	std::vector<unsigned int> input_sp;
 	double current_lowest_sp;
 
-	double no_transitions, no_endStates;
+	double no_transitions, no_endStates, count_trans;
 
 	bool found_sp = false;
 
@@ -799,19 +872,20 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 	/* Iterate over all states. */
 	for (unsigned int i = 0; i < no_states; i++){
 
-		// reset current_lowest_sp
-		current_lowest_sp = 0xFFFF;
-
 		XUz_rstct_x = XUz->Restrict(createMinterm(bdd_x, i));
 
 		if (XUz_rstct_x.IsZero()){
 			continue;
 		}
 
+		// reset current_lowest_sp
+		current_lowest_sp = 0xFFFF;
+		count_trans = 0.0;
+
 		// If no_transitions == 1, then we have definitely a deterministic transition,
 		// else we have to check the inputs. This may speed things up. // TODO: check if it optimizes things.
 		no_transitions = XUz_rstct_x.CountMinterm(no_state_vars+no_input_vars);
-		printf("-State: %d. No transitions: %f\n", i, no_transitions);
+		printf("-State: %d. No transitions: %d\n", i, (int)no_transitions);
 
 		/* Get Cost Dw(x). */
 		APSP_W_rstct = APSP_W->Restrict(createMinterm(add_x, i));
@@ -829,19 +903,20 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 				continue;
 			}
 
-
 			/* Get Dw(x') + c(x,u,x'). Covers also non-determinism. */
 			end_states_x = XUz_rstct_u.SwapVariables(*bdd_x, *bdd_x_).Add();
-//			SC_rstct_x = ((*SC) & end_states_x) + ((*APSP_W) & end_states_x);
-			SC_rstct_x = SC->Restrict(end_states_x) + APSP_W->Restrict(end_states_x);
+			SC_rstct_x   = SC->Restrict(end_states_x) + APSP_W->Restrict(end_states_x);
 
 			// In case it is non-deterministic: max(Dw(x') + c(x,u,x')).
-			SC_rstct_x = SC_rstct_x.FindMax();
+			SC_rstct_x   = SC_rstct_x.FindMax();
 			no_endStates = XUz_rstct_u.CountMinterm(no_state_vars);
-			printf(" Input: %d. No end states: %f\n", j, no_endStates);
+			count_trans += no_endStates;
+			printf(" Input: %d. No end states: %d\n", j, (int)no_endStates);
 
-			// Found a shorter path...update, i.e. relax the current state.
-			if (APSP_W_rstct > SC_rstct_x){
+			// Found a shorter or equal path...update, i.e. relax the current state.
+			// We want also the equal as in some future iteration other inputs that might be valid,
+			// can yield the same cost.
+			if (APSP_W_rstct >= SC_rstct_x){
 				printf("  Found shorter path!\n");
 				found_sp = true;
 				// Update Dw(x)
@@ -853,10 +928,8 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 				if (SC_rstct_x.getNode()->type.value < current_lowest_sp){
 					current_lowest_sp = SC_rstct_x.getNode()->type.value;
 					state_sp = i;
-//					input_sp.clear();
-//					input_sp.push_back(j);
 
-					printf("Adding state %d with cost %f to the priority queue. Number of inputs: %d\n", state_sp, current_lowest_sp, input_sp.size());
+					printf("Adding state %d with cost %.3f to the priority queue. \n", state_sp, current_lowest_sp);
 					// Update Priority Queue.
 					pq_mincost->push(std::make_pair(current_lowest_sp, state_sp));
 
@@ -867,7 +940,6 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 				else if (SC_rstct_x.getNode()->type.value == current_lowest_sp){
 					// Several inputs can yield the same shortest path.
 					if (state_sp == i){
-//						input_sp.push_back(j);
 						PA_W_temp += bdd_minterm_x.Ite(bdd_minterm_u, bdd_zero);
 					}
 				}
@@ -875,9 +947,15 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 			}
 
 			// If the number of transitions is one, then we have definitely a deterministic transition.
+			// This might speed things up.
 			if (no_transitions == 1.0){
 				break;
 			}
+
+//			// This might speed things up.
+//			if (count_trans == no_transitions){
+//				break;
+//			}
 		}
 
 		if (found_sp){
@@ -891,21 +969,10 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 			// Add new entry
 			*PA_W += PA_W_temp;
 
+			found_sp = false;
 		}
 
 	}
-
-
-//	if (found_sp){
-//		// Update Pw(x). Remember that multiple inputs can yield the same shortest path (sp).
-//		bdd_minterm_x = createMinterm(bdd_x, state_sp);
-//		for (i = 0; i < input_sp.size(); i++){
-//			*PA_W  += bdd_minterm_x.Ite(createMinterm(bdd_u, input_sp[i]), bdd_zero);
-//		}
-//	}
-//	else{
-//		printf("No shorter path found in this iteration!\n");
-//	}
 
 
 
@@ -922,10 +989,6 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 //	fclose(outfile);
 //	nodes_bdd.clear();
 
-
-
-
-
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
 	printf("ShortestPath::relax (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
@@ -933,8 +996,7 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 } /* relax */
 
 
-
-//!
+//! This method both implements the Xsz and Usz operators as defined in the theory.
 inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
 	printf("ShortestPath::operatorXUsz\n");
 
@@ -956,19 +1018,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 	system_rstct_Z  = system_bdd->Restrict(Z_swapped);
 
 	// Get rid of x'. Keep only x and u.
-	int existental[mgr_cpp->ReadSize()];
-	for (unsigned k = 0; k < (*bdd_u)[0].getNode()->index; k++){
-		existental[k] = 2;
-	}
-	for (unsigned k = (*bdd_u)[0].getNode()->index; k < (*bdd_x_)[0].getNode()->index; k++){
-		existental[k] = 2;
-	}
-	for (unsigned k = (*bdd_x_)[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
-		existental[k] = 1;
-	}
-
-	DdNode *cube_array  = Cudd_CubeArrayToBdd(mgr,existental);
-	BDD system_rstct_Zxu = system_rstct_Z.ExistAbstract(BDD(*mgr_cpp, cube_array), 0);
+	BDD system_rstct_Zxu = system_rstct_Z.ExistAbstract(existental_xu, 0);
 
 
 	// Filter-out the states that belong to the W set. (They are already in the W set :) )
@@ -989,7 +1039,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 
 	// Now we know which state/input does not satisfy the reachability game. We only have to filter-out the x' of the BDD.
 	// Get rid of x'. Keep only "bad" x and u.
-	BDD rg_ns_x = rg_ns_xux_.ExistAbstract(BDD(*mgr_cpp, cube_array), 0);
+	BDD rg_ns_x = rg_ns_xux_.ExistAbstract(existental_xu, 0);
 
 
 	// Now, remove undesired states. Of course states in the Z set have also to be removed.
@@ -1074,7 +1124,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 	return XUsz;
 }
 
-//!
+//! This method initialized the PA_W (BDD) to include the states that belong to the target set W and their inputs. PA_W represents the refined system/controller.
 void ShortestPath::initPA_W(BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
 	printf("ShortestPath::initPA_W\n");
 
@@ -1103,6 +1153,25 @@ void ShortestPath::initPA_W(BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> 
 
 
 //! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
+/**
+ * This method is used mainly to solve the non-deterministic shortest path problem. It is based on the reachability game that is performed by the operators \f$X_{S_{Z}}\f$ and \f$U_{S_{Z}}\f$ (operatorXUsz).
+ * These operators point out the next valid state-input(s), i.e. the next candidate (with its valid inputs) for the Z set. That is the set that holds the states where the shortest path has been computed.
+ * For each of these states the relax() function is called, which updates the shortest path value towards the target set and adds these states to a priority queue. Based on that queue the state with the
+ * lowest cost value is added to the Z set and is marked as resolved. The process ends when all states have been resolved. \n
+ * This method supports also deterministic systems.
+ *
+ *__Important Notice__: This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set @param W can been reached by all
+ *						states of the system/controller.
+ *
+ * @param S is the pointer to the System's BDD.
+ * @param SC is the pointer to the System's costs ADD.
+ * @param W is the pointer to the target set.
+ * @param APSP_W is the pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
+ * @param PA_W is the pointer the will hold / will store the new refined system. (Is used to return the result)
+ * @param no_states is the number of states of the system.
+ * @param no_inputs is the number of inputs of the system.
+ * @see operatorXUsz, relax
+ */
 void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, unsigned int no_states, unsigned int no_inputs){
 	printf("ShortestPath::APtoSetSP (ND)\n");
 
@@ -1116,6 +1185,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 	std::vector<ADD> *add_x_;
 
 	unsigned int left_states;
+
 
 #ifdef ENABLE_TIME_PROFILING
 	long long start_time = get_usec();
@@ -1139,7 +1209,8 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 		// Create the variables of the System.
 		createVariables(vars_index, no_state_vars, no_input_vars, bdd_x, bdd_u, bdd_x_);
-//		createVariables(vars_index, no_state_vars, no_input_vars, add_x, add_x_);
+		createVariables(vars_index, no_state_vars, no_input_vars, add_x, add_x_);
+
 	}
 	else{
 		bdd_x  = &this->bdd_x;
@@ -1171,6 +1242,8 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 	left_states = no_states - 1;
 	int iteration = 0;
+	int db_state;
+	double db_cost;
 
 	X = createXstates(no_states);
 	// Initialize the shortest path cost function. (Dw)
@@ -1193,7 +1266,6 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 //			pq_mincost.push(std::make_pair(0xFFFF, i));  // TODO: is this needed? Consider it....
 			continue;
 		}
-
 		pq_mincost.push(std::make_pair(0.0, i));
 	}
 
@@ -1204,18 +1276,21 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 	while(left_states){
 
 		iteration++;
-		printf("Iteration %d\n ", iteration);
+		printf("*Iteration %d\n", iteration);
 
 
 
 		// Get the state with the minimum cost: x = min{Dw(x) | x \in Q}
 		x_temp = createMinterm(bdd_x, pq_mincost.top().second);
-		printf("Adding state %d to Z. Cost: %f\n", pq_mincost.top().second, pq_mincost.top().first);
+		db_state = pq_mincost.top().second;
+		db_cost  = pq_mincost.top().first;
 		pq_mincost.pop(); // Remove lowest priority state
 		// If it is already resolved... continue. (Priority Queue unpleasant property)
 		if (!(Z.Restrict(x_temp).IsZero())){
 			continue;
 		}
+
+		printf("==>Adding state %d to Z. Cost: %.3f<==\n", db_state, db_cost);
 
 		// Z = Z \cup x
 		Z = Z + x_temp;
@@ -1315,6 +1390,14 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 
 
+	// De-Allocate memory for the vectors.
+	if (!system_analyzed){
+		delete bdd_x;
+		delete bdd_u;
+		delete bdd_x_;
+		delete add_x;
+		delete add_x_;
+	}
 
 
 
@@ -1325,7 +1408,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 } /* APtoSetSP */
 
-//!
+//! This method finds the next state to be followed to achieve the shortest path. That is, if there is no direct link.
 inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_){
 
 	unsigned int sq_node = (unsigned int)APSP_PA->Restrict(createMinterm(x_, *target_node)).getNode()->type.value;
@@ -1342,12 +1425,17 @@ inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *ta
 }
 
 //!
+//! Creates a BBD of the new refined controller in form of (x,u), based on the old one and the results of the Deterministic Shortest Path (@ref APtoSetSP).
 /**
+ * This method first checks how to get to the target node, by looking at the FW pointer array. If it is zero, it means that we have a direct link and nothing has to be done.
+ * Otherwise it finds the next (subsequent) node towards the target set, by calling the findSequentNode() method. In any case, as soon as it finds a valid states it records also
+ * the valid inputs. The final result is a BDD of the refined system in the form of (x,u).
  *
- * @param S
- * @param APSP_PA
- * @param APSP_PA_W
- * @return
+ * @param S a BDD of the initial system, i.e. controller that needs to be refined.
+ * @param APSP_PA an ADD of the all-pairs to a target set shortest path values.
+ * @param APSP_PA_W an ADD of the all-pairs to a target set shortest path pointer array.
+ * @return a BDD of the refined system in the form of (x,u).
+ * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_)
  */
 BDD ShortestPath::createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W){
 	printf("ShortestPath::createControllerBDD\n");
@@ -1522,6 +1610,7 @@ bool ShortestPath::Dddmp_cuddStore(ADD *f, char *fname, char *ddname, char **var
 * @param AG is the pointer to the System's BDD.
 * @param APSP is the _allocated_ pointer to the ADD for returning the APSP cost values.
 * @param PA is the _allocated_ pointer to the ADD for returning the pointer array of the APSP.
+* @see createCostAdjacencyMatrix, AddOuterSumTrace, AddOuterSumRecurTrace
 */
 void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 
@@ -1609,8 +1698,13 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 		Cudd_Ref(yminterm);
 
 		/* Creating the minterms. */
-		// LSB -- MSB
+#ifdef LSB_MSB
 		for (j = 0; j < no_vars; j++){
+#endif
+#ifdef MSB_LSB
+	for (j = no_vars;;){
+		if (j==0) break; j--;
+#endif
 			if (element & 1){
 				// row
 				temp_node = Cudd_addIte(mgr, xx[j], xminterm, zero);
@@ -2287,7 +2381,7 @@ long long ShortestPath::get_usec(void){
 
 
 
-
+//! Experimental. No description.
 bool ShortestPath::checkControllerDom(BDD *contrl, BDD *dom){
 
 	printf("ShortestPath::checkControllerDom\n");
@@ -2363,4 +2457,40 @@ bool ShortestPath::checkControllerDom(BDD *contrl, BDD *dom){
 
 	return true;
 }
+
+
+
+//! Experimental. Checks whether the given system's BDD and the system costs ADD are in the right form or not. That is, if all given states are present.
+void ShortestPath::selftest(BDD *S, ADD *costs){
+
+	printf("\nSelf-test initiated...");
+
+	bool success = true;
+
+	for (unsigned int i = 0; i < no_states; i++){
+		if (S->Restrict(createMinterm(&bdd_x,i)).IsZero()){
+			printf("\n***Critical error!!! Self-test failed! System. State: %d\n", i);
+			success = false;
+			break;
+		}
+	}
+
+	for (unsigned int i = 0; i < no_states; i++){
+		if (costs->Restrict(createMinterm(&add_x,i)) == mgr_cpp->plusInfinity()){
+			printf("\n***Critical error!!! Self-test failed! Costs.  State: %d\n", i);
+			success = false;
+			break;
+		}
+	}
+
+	if (success){
+		printf("success!\n");
+	}
+
+	printf("Self-test end!\n\n");
+}
+
+
+
+
 
