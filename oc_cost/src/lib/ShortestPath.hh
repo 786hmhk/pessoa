@@ -61,8 +61,8 @@
 #include "cuddObj.hh"
 
 //!
-//#define LSB_MSB
-#define MSB_LSB
+#define LSB_MSB
+//#define MSB_LSB
 
 #ifdef LSB_MSB
 #undef MSB_LSB
@@ -253,9 +253,9 @@ public:
 	 * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
 	 *
 	 * __Important Notice__:
-	 * - Memory should have been already allocated for the results (@param APSP_W and @param PA_W).
+	 * - Memory should have been already allocated for the results (<strong class="paramname">APSP_W</strong> and <strong class="paramname">PA_W</strong>).
 	 * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
-	 * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (@param PA).
+	 * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (<strong class="paramname">PA</strong>).
 	 *
 	 * @param APSP is the ADD containing the all-pairs shortest path values.
 	 * @param PA is the ADD containing the pointer array of the APSP.
@@ -275,14 +275,16 @@ public:
 	 * lowest cost value is added to the Z set and is marked as resolved. The process ends when all states have been resolved. \n
 	 * This method supports also deterministic systems.
 	 *
-	 *__Important Notice__: This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set @param W can been reached by all
-	 *						states of the system/controller.
+	 *__Important Notice__:
+	 * - This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set <strong class="paramname">W</strong> can been reached by all
+	 *	 states of the system/controller.
+	 * - This method assumes that the arguments (<strong class="paramname">APSP_W</strong>, <strong class="paramname">PA_W</strong>), which are used to pass the result, have been already allocated. Empty pointers of these will result to an error!
 	 *
 	 * @param S is the pointer to the System's BDD.
 	 * @param SC is the pointer to the System's costs ADD.
 	 * @param W is the pointer to the target set.
-	 * @param APSP_W is the pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
-	 * @param PA_W is the pointer the will hold / will store the new refined system. (Is used to return the result)
+	 * @param APSP_W is the _allocated_ pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
+	 * @param PA_W is the _allocated_ pointer the will hold / will store the new refined system. (Is used to return the result)
 	 * @param no_states is the number of states of the system.
 	 * @param no_inputs is the number of inputs of the system.
 	 * @see operatorXUsz, relax
@@ -295,11 +297,11 @@ public:
 	 * Otherwise it finds the next (subsequent) node towards the target set, by calling the findSequentNode() method. In any case, as soon as it finds a valid states it records also
 	 * the valid inputs. The final result is a BDD of the refined system in the form of (x,u).
 	 *
-	 * @param S a BDD of the initial system, i.e. controller that needs to be refined.
-	 * @param APSP_PA an ADD of the all-pairs to a target set shortest path values.
-	 * @param APSP_PA_W an ADD of the all-pairs to a target set shortest path pointer array.
+	 * @param S a pointer to the BDD of the initial system, i.e. the controller that needs to be refined.
+	 * @param APSP_PA a pointer to the ADD representing the all-pairs to a target set shortest path values.
+	 * @param APSP_PA_W a pointer to the ADD representing the all-pairs to a target set shortest path pointer array.
 	 * @return a BDD of the refined system in the form of (x,u).
-	 * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_)
+	 * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode
 	 */
 	BDD createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W);
 
@@ -339,7 +341,7 @@ public:
 	bool checkControllerDom(BDD *contrl, BDD *dom);
 
 	//! Experimental. Checks whether the given system's BDD and the system costs ADD are in the right form or not. That is, if all given states are present.
-	void selftest(BDD *S, ADD *costs);
+	bool selftest(BDD *S, ADD *costs);
 };
 
 #endif /* SHORTESTPATH_H_ */

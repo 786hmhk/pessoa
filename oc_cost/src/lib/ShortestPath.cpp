@@ -509,7 +509,7 @@ inline void ShortestPath::createVariables(std::vector<int> vars_index, int no_st
 		(*x).push_back(mgr_cpp->bddVar(vars_index[i]));
 		(*x_).push_back(mgr_cpp->bddVar(vars_index[i + (no_state_vars + no_input_vars)]));
 	}
-}
+} /* createVariables */
 
 //! Creates all the variables x and x_ given the corresponding indexes.
 /**
@@ -660,9 +660,9 @@ void ShortestPath::createExistentalBDD(){
  * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
  *
  * __Important Notice__:
- * - Memory should have been already allocated for the results (@param APSP_W and @param PA_W).
+ * - Memory should have been already allocated for the results (<strong class="paramname">APSP_W</strong> and <strong class="paramname">PA_W</strong>).
  * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
- * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (@param PA).
+ * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (<strong class="paramname">PA</strong>).
  *
  * @param APSP is the ADD containing the all-pairs shortest path values.
  * @param PA is the ADD containing the pointer array of the APSP.
@@ -834,7 +834,7 @@ inline BDD ShortestPath::createXstates(int no_states){
 }
 
 
-//! This method "relaxes", i.e. updates the shortest path value and the pointer index of the states that are consideres as candidates for the Z set, i.e. the resolved set.
+//! This method "relaxes" the states, i.e. updates the shortest path value and the pointer index of the states that are consideres as candidates for the Z set, i.e. the resolved set.
 inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_relax *pq_mincost, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_, std::vector<ADD> *add_x, std::vector<ADD> *add_x_){
 	printf("ShortestPath::relax\n");
 
@@ -952,10 +952,10 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 				break;
 			}
 
-//			// This might speed things up.
-//			if (count_trans == no_transitions){
-//				break;
-//			}
+			// This might speed things up.
+			if (count_trans == no_transitions){
+				break;
+			}
 		}
 
 		if (found_sp){
@@ -1160,14 +1160,16 @@ void ShortestPath::initPA_W(BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> 
  * lowest cost value is added to the Z set and is marked as resolved. The process ends when all states have been resolved. \n
  * This method supports also deterministic systems.
  *
- *__Important Notice__: This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set @param W can been reached by all
- *						states of the system/controller.
+ *__Important Notice__:
+ * - This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set <strong class="paramname">W</strong> can been reached by all
+ *	 states of the system/controller.
+ * - This method assumes that the arguments (<strong class="paramname">APSP_W</strong>, <strong class="paramname">PA_W</strong>), which are used to pass the result, have been already allocated. Empty pointers of these will result to an error!
  *
  * @param S is the pointer to the System's BDD.
  * @param SC is the pointer to the System's costs ADD.
  * @param W is the pointer to the target set.
- * @param APSP_W is the pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
- * @param PA_W is the pointer the will hold / will store the new refined system. (Is used to return the result)
+ * @param APSP_W is the _allocated_ pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
+ * @param PA_W is the _allocated_ pointer the will hold / will store the new refined system. (Is used to return the result)
  * @param no_states is the number of states of the system.
  * @param no_inputs is the number of inputs of the system.
  * @see operatorXUsz, relax
@@ -1422,7 +1424,8 @@ inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *ta
 	}
 
 	return *target_node;
-}
+} /* findSequentNode */
+
 
 //!
 //! Creates a BBD of the new refined controller in form of (x,u), based on the old one and the results of the Deterministic Shortest Path (@ref APtoSetSP).
@@ -1431,13 +1434,14 @@ inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *ta
  * Otherwise it finds the next (subsequent) node towards the target set, by calling the findSequentNode() method. In any case, as soon as it finds a valid states it records also
  * the valid inputs. The final result is a BDD of the refined system in the form of (x,u).
  *
- * @param S a BDD of the initial system, i.e. controller that needs to be refined.
- * @param APSP_PA an ADD of the all-pairs to a target set shortest path values.
- * @param APSP_PA_W an ADD of the all-pairs to a target set shortest path pointer array.
+ * @param S a pointer to the BDD of the initial system, i.e. the controller that needs to be refined.
+ * @param APSP_PA a pointer to the ADD representing the all-pairs to a target set shortest path values.
+ * @param APSP_PA_W a pointer to the ADD representing the all-pairs to a target set shortest path pointer array.
  * @return a BDD of the refined system in the form of (x,u).
- * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_)
+ * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode
  */
 BDD ShortestPath::createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W){
+
 	printf("ShortestPath::createControllerBDD\n");
 #ifdef ENABLE_TIME_PROFILING
 	long long start_time = get_usec();
@@ -1543,7 +1547,8 @@ BDD ShortestPath::createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W){
 
 
 	return controller;
-}
+} /* createControllerBDD */
+
 
 //! Dumps the argument BDD to file.
 /** Dumping is done through Dddmp_cuddBddArrayStore. A dummy array of 1 BDD root is used for this purpose.
@@ -1568,7 +1573,7 @@ bool ShortestPath::Dddmp_cuddStore(BDD *f, char *fname, char *ddname, char **var
 
 	if (ok) return true;
 	else return false;
-}
+} /* Dddmp_cuddStore */
 
 
 //! Dumps the argument ADD to file.
@@ -1594,7 +1599,7 @@ bool ShortestPath::Dddmp_cuddStore(ADD *f, char *fname, char *ddname, char **var
 
 	if (ok) return true;
 	else return false;
-}
+} /* Dddmp_cuddStore */
 
 
 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
@@ -2461,33 +2466,49 @@ bool ShortestPath::checkControllerDom(BDD *contrl, BDD *dom){
 
 
 //! Experimental. Checks whether the given system's BDD and the system costs ADD are in the right form or not. That is, if all given states are present.
-void ShortestPath::selftest(BDD *S, ADD *costs){
+bool ShortestPath::selftest(BDD *S, ADD *costs){
 
 	printf("\nSelf-test initiated...");
 
 	bool success = true;
+	unsigned int count = 0;
 
 	for (unsigned int i = 0; i < no_states; i++){
 		if (S->Restrict(createMinterm(&bdd_x,i)).IsZero()){
-			printf("\n***Critical error!!! Self-test failed! System. State: %d\n", i);
-			success = false;
-			break;
+
+//			if (!success){
+//				break;
+//			}
+
+			if (S->Restrict(createMinterm(&bdd_x_,i)).IsZero()){
+//				printf("\n***Critical error!!! Self-test failed! System. State: %d. ", i);
+				if (costs->Restrict(createMinterm(&add_x,i)) == mgr_cpp->plusInfinity()){
+//					printf("Cost infinity.\n");
+				}
+
+				success = false;
+				count++;
+				continue;
+			}
+
+			if (costs->Restrict(createMinterm(&add_x,i)) == mgr_cpp->plusInfinity()){
+
+				printf("***Warning! Cost infinity.  State: %d\n", i);
+//				success = false;
+			}
 		}
 	}
 
-	for (unsigned int i = 0; i < no_states; i++){
-		if (costs->Restrict(createMinterm(&add_x,i)) == mgr_cpp->plusInfinity()){
-			printf("\n***Critical error!!! Self-test failed! Costs.  State: %d\n", i);
-			success = false;
-			break;
-		}
-	}
 
 	if (success){
 		printf("success!\n");
 	}
+	else{
+		printf("failed!!! Number invalid states: %d of %d. Only %d valid.\n", count, no_states, no_states - count);
+	}
 
 	printf("Self-test end!\n\n");
+	return success;
 }
 
 

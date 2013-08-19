@@ -65,8 +65,8 @@ int main(int argc, char* argv[]) {
 	printf("Main.\n\n");
 
 //	example_DSP();
-	example_NDSP();
-//	test_actual();
+//	example_NDSP();
+	test_actual();
 
 	printf("\n\nExiting Program...\n");
 
@@ -75,7 +75,7 @@ int main(int argc, char* argv[]) {
 ///////////////////////////////////////////////////////////
 
 
-//#define D_SP
+
 
 /**/
 void test_actual(){
@@ -211,8 +211,10 @@ void test_actual(){
 //	sp.checkControllerDom(&CS, &Contr_dom);
 
 
-	sp.selftest(&CS, &SC);
+	/* Self test. */
+	if (!sp.selftest(&CS, &SC)) exit(1);
 
+//#define D_SP
 
 #ifdef D_SP
 	/* Create the Cost Adjacency Matrix */
@@ -364,8 +366,8 @@ void example_DSP(){
 	// Define the System in terms of transitions. (x,u,x')
 	// Important: Only deterministic transitions!
 
-	/*
 
+/*
 	#define SYSTEM_TRANSITIONS \
 		\
 	  TRANSITION(0,0,1)		\
@@ -446,6 +448,9 @@ void example_DSP(){
 	/* Create the Shortest Path Object */
 	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
 //	ShortestPath sp(&mgr);
+
+	// Self test.
+	if (!sp.selftest(&S, &C)) exit(1);
 
 	/* Create the Cost Adjacency Matrix */
 	AG = sp.createCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
@@ -583,25 +588,25 @@ void example_NDSP(){
 	/************************ Define the System ******************************/
 
 	// Number of states/inputs
-	no_states = 7;
-	no_inputs = 4;
+//	no_states = 7;
+//	no_inputs = 4;
 //	no_states = 5;
 //	no_inputs = 3;
-//	no_states = 5;
-//	no_inputs = 4;
+	no_states = 5;
+	no_inputs = 4;
 
 
 
 	state_costs = new int[no_states];
 
 	// Give the cost of each state
-	state_costs[0] = 5;
-	state_costs[1] = 2;
-	state_costs[2] = 4;
-	state_costs[3] = 1;
-	state_costs[4] = 1;
-	state_costs[5] = 10;
-	state_costs[6] = 7;
+//	state_costs[0] = 5;
+//	state_costs[1] = 2;
+//	state_costs[2] = 4;
+//	state_costs[3] = 1;
+//	state_costs[4] = 1;
+//	state_costs[5] = 10;
+//	state_costs[6] = 7;
 
 //	state_costs[0] = 4;
 //	state_costs[1] = 2;
@@ -609,39 +614,28 @@ void example_NDSP(){
 //	state_costs[3] = 1;
 //	state_costs[4] = 3;
 
-//	state_costs[0] = 10;
-//	state_costs[1] = 1;
-//	state_costs[2] = 2;
-//	state_costs[3] = 2;
-//	state_costs[4] = 1;
+	state_costs[0] = 10;
+	state_costs[1] = 1;
+	state_costs[2] = 2;
+	state_costs[3] = 2;
+	state_costs[4] = 1;
 
 	// Define the System in terms of transitions.
 	#define SYSTEM_TRANSITIONS \
 							\
-	  TRANSITION(0,2,1)		\
-	+ TRANSITION(0,1,6)		\
-							\
-	+ TRANSITION(1,1,3)		\
-	+ TRANSITION(1,2,3)		\
-							\
-	+ TRANSITION(2,0,1)		\
-	+ TRANSITION(2,0,3)		\
-	+ TRANSITION(2,1,5)		\
-	+ TRANSITION(2,2,2)		\
-							\
-	+ TRANSITION(3,3,4)		\
-							\
-	+ TRANSITION(4,0,5)		\
-							\
-	+ TRANSITION(5,1,4)		\
-							\
-	+ TRANSITION(6,0,0)		\
-	+ TRANSITION(6,0,2)		\
-							\
-	+ TRANSITION(2,3,4)     \
-	+ TRANSITION(2,0,4)     \
-	+ TRANSITION(2,1,4)     \
-	+ TRANSITION(4,0,3)     \
+							  TRANSITION(0,0,2)		\
+							+ TRANSITION(0,3,1)		\
+							+ TRANSITION(0,3,2)		\
+													\
+							+ TRANSITION(1,0,3)		\
+							+ TRANSITION(1,0,4)		\
+							+ TRANSITION(1,1,3)		\
+													\
+							+ TRANSITION(2,2,4)		\
+													\
+							+ TRANSITION(3,3,4)		\
+													\
+							+ TRANSITION(4,3,3)		\
 
 	/*
 	  TRANSITION(0,0,2)		\
@@ -704,8 +698,8 @@ void example_NDSP(){
 
 
 	// Give the Target Set W.
-	target_set.push_back(4);
-	target_set.push_back(5);
+//	target_set.push_back(4);
+	target_set.push_back(3);
 
 
 	/************************************************************************/
@@ -753,7 +747,8 @@ void example_NDSP(){
 	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
 //	ShortestPath sp(&mgr);
 
-	sp.selftest(&S, &SC);
+	// Self test.
+	if (!sp.selftest(&S, &SC)) exit(1);
 
 	/* Find the All-pair Shortest Path to  a Set. */
 	ADD APSP_W;
