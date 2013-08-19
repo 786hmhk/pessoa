@@ -86,6 +86,8 @@
 //! Cache Tag for the cache used in cuddAddApplyRecurTrace method.
 #define DD_ADD_MINIMUM_TRACE_TAG		0x6d
 
+//#define APtoSetSP_DEBUG
+
 //! Stores the number of state and its corresponding shortest path value. Used in the priority queue.
 typedef std::pair<double, unsigned int> pair_double_int;
 //! Priority queue to store the state number with the minimum cost. Used in the Relax method.

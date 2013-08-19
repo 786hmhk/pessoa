@@ -837,7 +837,9 @@ inline BDD ShortestPath::createXstates(int no_states){
 
 //! This method "relaxes" the states, i.e. updates the shortest path value and the pointer index of the states that are consideres as candidates for the Z set, i.e. the resolved set.
 inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_relax *pq_mincost, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_, std::vector<ADD> *add_x, std::vector<ADD> *add_x_){
+#ifdef APtoSetSP_DEBUG
 	printf("ShortestPath::relax\n");
+#endif
 
 #ifdef ENABLE_TIME_PROFILING
 	long long start_time = get_usec();
@@ -886,7 +888,9 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 		// If no_transitions == 1, then we have definitely a deterministic transition,
 		// else we have to check the inputs. This may speed things up. // TODO: check if it optimizes things.
 		no_transitions = XUz_rstct_x.CountMinterm(no_state_vars+no_input_vars);
+#ifdef APtoSetSP_DEBUG
 		printf("-State: %d. No transitions: %d\n", i, (int)no_transitions);
+#endif
 
 		/* Get Cost Dw(x). */
 		APSP_W_rstct = APSP_W->Restrict(createMinterm(add_x, i));
@@ -912,13 +916,17 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 			SC_rstct_x   = SC_rstct_x.FindMax();
 			no_endStates = XUz_rstct_u.CountMinterm(no_state_vars);
 			count_trans += no_endStates;
+#ifdef APtoSetSP_DEBUG
 			printf(" Input: %d. No end states: %d\n", j, (int)no_endStates);
+#endif
 
 			// Found a shorter or equal path...update, i.e. relax the current state.
 			// We want also the equal as in some future iteration other inputs that might be valid,
 			// can yield the same cost.
 			if (APSP_W_rstct >= SC_rstct_x){
+#ifdef APtoSetSP_DEBUG
 				printf("  Found shorter path!\n");
+#endif
 				found_sp = true;
 				// Update Dw(x)
 				APSP_W_wo_state = (*APSP_W) & (~add_minterm_x);
@@ -930,7 +938,9 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 					current_lowest_sp = SC_rstct_x.getNode()->type.value;
 					state_sp = i;
 
+#ifdef APtoSetSP_DEBUG
 					printf("Adding state %d with cost %.3f to the priority queue. \n", state_sp, current_lowest_sp);
+#endif
 					// Update Priority Queue.
 					pq_mincost->push(std::make_pair(current_lowest_sp, state_sp));
 
@@ -989,21 +999,23 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 //	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_bdd.clear();
-
+//#ifdef APtoSetSP_DEBUG
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
 	printf("ShortestPath::relax (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #endif
+//#endif
 } /* relax */
 
 
 //! This method both implements the Xsz and Usz operators as defined in the theory.
 inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
-	printf("ShortestPath::operatorXUsz\n");
-
+//#ifdef APtoSetSP_DEBUG
+//	printf("ShortestPath::operatorXUsz\n");
 #ifdef ENABLE_TIME_PROFILING
 	long long start_time = get_usec();
 #endif
+//#endif
 
 	BDD Q_swapped, Z_swapped;
 	BDD system_rstct_Z, system_rstct_ZW, system_rstct_ZWu;
@@ -1050,6 +1062,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 	XUsz &= (*system_bdd);
 
 
+#ifdef APtoSetSP_DEBUG
 	// Testing - delete
 	printf("Valid states - inputs:\n");
 	for (unsigned int i = 0; i < no_states; i++){
@@ -1067,6 +1080,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 			printf("(%d,%d)\n",i,j);
 		}
 	}
+#endif
 
 
 //	// Create .dot file
@@ -1115,11 +1129,12 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 //	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_bdd.clear();
-
+//#ifdef APtoSetSP_DEBUG
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
 	printf("ShortestPath::operatorXUsz (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #endif
+//#endif
 
 
 	return XUsz;
@@ -1244,9 +1259,12 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 	 */
 
 	left_states = no_states - 1;
+#ifdef APtoSetSP_DEBUG
 	int iteration = 0;
 	int db_state;
 	double db_cost;
+#endif
+	double percentage = 0.0;
 
 	X = createXstates(no_states);
 	// Initialize the shortest path cost function. (Dw)
@@ -1274,26 +1292,32 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 
 	/*
-	 * Main Loop. Break when Q != empty.
+	 * Main Loop. Breaks when Q != empty.
 	 */
 	while(left_states){
 
+#ifdef APtoSetSP_DEBUG
 		iteration++;
 		printf("*Iteration %d\n", iteration);
+#endif
 
 
 
 		// Get the state with the minimum cost: x = min{Dw(x) | x \in Q}
 		x_temp = createMinterm(bdd_x, pq_mincost.top().second);
+#ifdef APtoSetSP_DEBUG
 		db_state = pq_mincost.top().second;
 		db_cost  = pq_mincost.top().first;
+#endif
 		pq_mincost.pop(); // Remove lowest priority state
 		// If it is already resolved... continue. (Priority Queue unpleasant property)
 		if (!(Z.Restrict(x_temp).IsZero())){
 			continue;
 		}
 
+#ifdef APtoSetSP_DEBUG
 		printf("==>Adding state %d to Z. Cost: %.3f<==\n", db_state, db_cost);
+#endif
 
 		// Z = Z \cup x
 		Z = Z + x_temp;
@@ -1303,7 +1327,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 
 
-
+#ifdef APtoSetSP_DEBUG
 		// Testing - delete
 		printf("States in the Z set: (-");
 		for (unsigned int i = 0; i < no_states; i++){
@@ -1322,7 +1346,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 			printf("%d-",i);
 		}
 		printf(")\n");
-
+#endif
 
 
 
@@ -1335,7 +1359,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 
 
-
+#ifdef APtoSetSP_DEBUG
 		// Testing - delete
 		printf("Current System (x,u):\n");
 		for (unsigned int i = 0; i < no_states; i++){
@@ -1353,20 +1377,22 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 				printf("(%d,%d)\n",i,j);
 			}
 		}
+#endif
 
 
 
-		// Some critical error that should not happen dude!
-		if (XUz.IsZero()){
-			printf("***WTF?? Critical ERROR!*** (System is not satisfying the reachability game)\n");
-			return;
-		}
+//		// Some critical error that should not happen dude!
+//		if (XUz.IsZero()){
+//			printf("***WTF?? Critical ERROR!*** (System is not satisfying the reachability game)\n");
+//			return;
+//		}
 
 		left_states--;
 
-//		// delete
-//		if (left_states == (no_states - 4)){
-//			break;
+//		if ((1 - ((double)(no_states - left_states)/100)) - percentage >= 0.05){
+//			percentage = 1.0 - ((double)(no_states - left_states)/(double)no_states);
+//			printf(" %.2f%%...", 100 * percentage);
+		printf("%.2f%%\n", (1.0 - (double)left_states/no_states)*100.0);
 //		}
 	}
 
