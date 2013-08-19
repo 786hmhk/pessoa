@@ -63,8 +63,23 @@ pessoa_cost2add::pessoa_cost2add(mxArray **plhs, const mxArray **prhs, Cudd *mgr
 	params_symb.deter     = (int)mxGetScalar(mxGetField(psv,0,"deter"));
 	params_symb.nbitsx    = (int)mxGetScalar(mxGetField(psv,0,"nbitsx"));
 
+
+	// Get the number of states and inputs.
+    nstates = 1;
+	for (int i = 0; i < params_symb.n; i++)
+		nstates *= ((unsigned int)params_symb.nume[i]+1);
+
+	ninputs = 1;
+	for (int i = params_symb.n; i < params_symb.n + params_symb.m; i++)
+		ninputs *= ((unsigned int)params_symb.nume[i]+1);
+
+	no_figure = 1;
+
 	// Get & create the filename of the ADD holding the state costs.
-	SysStateCostADD_name = mxArrayToString(prhs[0]);
+	SysBDD_name = mxArrayToString(prhs[0]);
+	SysStateCostADD_name = (char*)mxMalloc(strlen(SysBDD_name)+6);
+	strcpy(SysStateCostADD_name, SysBDD_name);
+	strcat(SysStateCostADD_name, "Costs");
 
 	// CUDD Manager.
 	this->mgr = mgr;
@@ -78,6 +93,7 @@ pessoa_cost2add::pessoa_cost2add(mxArray **plhs, const mxArray **prhs, Cudd *mgr
 
 pessoa_cost2add::~pessoa_cost2add() {
 	mxFree(SysStateCostADD_name);
+	mxFree(SysBDD_name);
 }
 
 //! Creates the ADD holding the System's States Cost.
@@ -90,7 +106,6 @@ void pessoa_cost2add::createSysStatesCost(){
 #ifdef WAITBAR_ENABLE
 	double *wfsteps;
 #endif
-//	double *jnbatch; // TODO: DELETE This... (?)
 	//
 	mxArray *pstate_array, *pset_state_array, *pjnbatch, *pstate_cost_array;
 	//
@@ -105,7 +120,6 @@ void pessoa_cost2add::createSysStatesCost(){
 	pstate_array      = mxCreateNumericMatrix(params_symb.n,nbatch,mxDOUBLE_CLASS,mxREAL);
 	pjnbatch          = mxCreateDoubleScalar(nbatch);
 
-//	jnbatch           = (double *) mxGetData(pjnbatch);
 	state_array       = (double *) mxGetData(pstate_array);
 
 
@@ -337,7 +351,28 @@ void pessoa_cost2add::plotSysStateCost(){
 //	xlabel('length'); ylabel('width'); zlabel('height');
 //	mexEvalString("states_costs_ = [states_array cost_array]");
 
-	mexEvalString("figure; scatter3(states_array(:,1), states_array(:,2), cost_array, 5, cost_array); colormap(jet); xlabel('State Variable x(1)'); ylabel('State Variable x(2)'); zlabel('State Cost');");
+	switch (no_figure){
+
+	case 1:
+		mexEvalString(
+				"h = figure('name','State Costs of the System'); scatter3(states_array(:,1), states_array(:,2), cost_array, 5, cost_array); colormap(jet); xlabel('State Variable x(1)'); ylabel('State Variable x(2)'); zlabel('State Cost'); "
+						"saveas(h,'costs_orig','fig')");
+		break;
+	case 2:
+		mexEvalString(
+				"h = figure('name','State Costs of the System'); scatter3(states_array(:,1), states_array(:,2), cost_array, 5, cost_array); colormap(jet); xlabel('State Variable x(1)'); ylabel('State Variable x(2)'); zlabel('State Cost'); "
+						"saveas(h,'costs_vs','fig')");
+		break;
+	case 3:
+		mexEvalString(
+				"h = figure('name','State Costs of the System'); scatter3(states_array(:,1), states_array(:,2), cost_array, 5, cost_array); colormap(jet); xlabel('State Variable x(1)'); ylabel('State Variable x(2)'); zlabel('State Cost'); "
+						"saveas(h,'costs_vt','fig')");
+		break;
+	}
+
+	no_figure++;
+
+
 
 
 #ifdef WAITBAR_ENABLE
@@ -393,9 +428,14 @@ bool pessoa_cost2add::isInADD(double *array, double *cost){
 	return false;
 }
 
-//! Returns the Ssstem's Cost ADD.
+//! Returns the System's Cost ADD.
 ADD pessoa_cost2add::getSysStateCost(){
 	return sys_state_cost;
+}
+
+//! Sets the System's Cost ADD.
+void pessoa_cost2add::setSysStateCost(ADD sysCosts){
+	sys_state_cost = sysCosts;
 }
 
 //! Dumps the System's State Cost ADD to a .add file.
@@ -441,6 +481,28 @@ void pessoa_cost2add::dumpSysStateCostDot(){
 	mxFree(name);
 }
 
+//! Experimental. Filters out (assigns infinity) to states that are invalid.
+ADD pessoa_cost2add::filterCosts(int mode){
+
+	char *SysBDD_filename = (char*)mxMalloc(strlen(SysBDD_name)+5);
+	strcpy(SysBDD_filename, SysBDD_name);
+	strcat(SysBDD_filename, ".bdd");
+
+	// check for file existence
+	mexPrintf("Checking %s ...\n", SysBDD_filename);
+	FILE * smFile;
+	smFile = fopen(SysBDD_filename,"r");
+	FILE_EXISTS(smFile)
+
+	// Loading .bdd and .add files.
+	BDD S = BDD(*mgr, Dddmp_cuddBddLoad(mgr->getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, SysBDD_filename, NULL));
+
+	/* Create the Shortest Path Object */
+	ShortestPath sp(mgr, &S, nstates, ninputs);
+
+	return sp.filterCosts(&S, &sys_state_cost, mode);
+}
+
 
 //! Mex Function.
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
@@ -465,9 +527,6 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	pessoa_cost2add cost2add(plhs, prhs, &mgr, verbose);
 	/* Create the ADD. */
 	cost2add.createSysStatesCost();
-	/* Dump the ADD to an .add file. */
-	if (!cost2add.dumpSysStateCost())
-		mexErrMsgTxt("Error dumping the Systems' Cost ADD into an .add file!");
 
 	if (verbose == 3){
 		// Create .dot file
@@ -476,6 +535,37 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 		// Plot ADD.
 		cost2add.plotSysStateCost();
 	}
+
+	if (verbose == 4){
+
+		ADD backup = cost2add.getSysStateCost();
+
+		// Plot Initial ADD.
+		cost2add.plotSysStateCost();
+
+		// KEEP_VALID_STATES
+		cost2add.setSysStateCost(cost2add.filterCosts(KEEP_VALID_STATES));
+		// Plot ADD.
+		cost2add.plotSysStateCost();
+
+		// restore ADD.
+		cost2add.setSysStateCost(backup);
+
+		// KEEP_VALID_TRANSITIONS
+		cost2add.setSysStateCost(cost2add.filterCosts(KEEP_VALID_TRANSITIONS));
+		// Plot ADD.
+		cost2add.plotSysStateCost();
+
+		// restore ADD.
+		cost2add.setSysStateCost(backup);
+
+		// Filter/fix the figures.
+		mexEvalString("analyzeCostFig");
+	}
+
+	/* Dump the ADD to an .add file. */
+	if (!cost2add.dumpSysStateCost())
+		mexErrMsgTxt("Error dumping the Systems' Cost ADD into an .add file!");
 
 
 	mexPrintf("\n------------------ Pessoa: Creating Cost ADD Terminated ------------------- \n");

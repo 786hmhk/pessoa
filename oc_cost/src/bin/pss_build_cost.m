@@ -30,8 +30,6 @@ if verbose==3
 end
 
 
-filename_cost = strcat(system_name, 'Costs');
-
 nbatch=N_sims;
 
 load(strcat(system_name, '_symb'),'params_symb');
@@ -43,7 +41,7 @@ maxc = params_symb.max(params_symb.xoind) - params_symb.min(params_symb.xoind);
 totloops=ceil(prod((maxc-minc)+ones(size(maxc)))/nbatch);
 %
 disp('Creating the .add containing the Systems State Costs.');
-pessoa_cost2add(filename_cost,minc,maxc,verbose);
+pessoa_cost2add(system_name,minc,maxc,verbose);
 
 
 % Create the Cost Adjacency Matrix and compute the APSP.

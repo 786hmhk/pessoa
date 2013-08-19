@@ -61,9 +61,23 @@
 // Pessoa Header
 //#include "pessoa.h"
 //
-//#include "ShortestPath.hh"
+#include "ShortestPath.hh" //TODO: IMPORTAT! ONLY NEEDED FOR filterCosts(). OTHERWISE REMOVE AND DELETE filterCosts().
 
 //#define WAITBAR_ENABLE
+
+#define KEEP_VALID_STATES 		1
+#define KEEP_VALID_TRANSITIONS 	2
+
+
+#define FILE_EXISTS(file) 	if ((file)==NULL) \
+								{ \
+									mexEvalString("warndlg('Symbolic model file not found!','Pessoa Error')");\
+									mexErrMsgTxt("\nERROR: Symbolic model file not found!.\n"); \
+								} \
+								else \
+								{ \
+									fclose((file));\
+								}
 
 // TODO: delete this when used together with the Pessoa project.
 // Add "pessoa.h" instead.
@@ -95,10 +109,16 @@ private:
 	mxArray *psv;
 	// holds the MATLAB variable nbatch.
 	long nbatch;
+	// Number of states and inputs.
+	unsigned int nstates, ninputs;
 	// The name of the .add holding the States costs.
 	char *SysStateCostADD_name;
+	// The name of the .bdd holding the System representation.
+	char *SysBDD_name; // delete if filtercosts() is removed.
 
 	unsigned int total_add_states;
+
+	int no_figure;
 
 #ifdef WAITBAR_ENABLE
 	double totloops;
@@ -121,11 +141,16 @@ public:
 	void createSysStatesCost();
 
 	ADD getSysStateCost();
+	void setSysStateCost(ADD sysCosts);
 
 	bool dumpSysStateCost();
 	void dumpSysStateCostDot();
 
 	void plotSysStateCost();
+
+	//! Experimental. Filters out states depending on the mode.
+	ADD filterCosts(int mode = KEEP_VALID_STATES);
+
 };
 
 

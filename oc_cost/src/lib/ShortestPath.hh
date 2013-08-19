@@ -91,6 +91,10 @@ typedef std::pair<double, unsigned int> pair_double_int;
 //! Priority queue to store the state number with the minimum cost. Used in the Relax method.
 typedef std::priority_queue<pair_double_int, std::vector<pair_double_int>, std::greater<pair_double_int> > pq_relax;
 
+#define KEEP_VALID_STATES 		1
+#define KEEP_VALID_TRANSITIONS 	2
+
+
 
 //! This is the main class for generating the DD's used in optimal control.
 //! Supports both deterministic and non-deterministic systems.
@@ -340,8 +344,11 @@ public:
 	//! Experimental. No description.
 	bool checkControllerDom(BDD *contrl, BDD *dom);
 
-	//! Experimental. Checks whether the given system's BDD and the system costs ADD are in the right form or not. That is, if all given states are present.
-	bool selftest(BDD *S, ADD *costs);
+	//! Experimental. Analyzes given system's BDD and system's cost ADD.
+	void diagnostics(BDD *S, ADD *costs);
+
+	//! Experimental. Filters out (assigns infinity) to states that are invalid.
+	ADD filterCosts(BDD *S, ADD *costs, int mode = KEEP_VALID_STATES);
 };
 
 #endif /* SHORTESTPATH_H_ */

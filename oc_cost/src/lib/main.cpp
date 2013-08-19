@@ -160,7 +160,7 @@ void test_actual(){
 
 //	BDD S  = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotor.bdd", NULL));
 
-	BDD CS        = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController.bdd", NULL));
+	BDD S        = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController.bdd", NULL));
 	BDD Contr_dom = BDD(mgr, Dddmp_cuddBddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorController_dom.bdd", NULL));
 
 //	// Create .dot file
@@ -177,10 +177,10 @@ void test_actual(){
 //	fclose(outfile);
 //	nodes_bdd.clear();
 
-	ADD SC = ADD(mgr, Dddmp_cuddAddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorCosts.add", NULL));
+	ADD C = ADD(mgr, Dddmp_cuddAddLoad(mgr.getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, "DCMotorCosts.add", NULL));
 
 	// Create .dot file
-	nodes_add.push_back(SC);
+	nodes_add.push_back(C);
 	outfile = fopen("DCMotorCosts.dot", "w");
 	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 	fclose(outfile);
@@ -203,16 +203,25 @@ void test_actual(){
 
 	/* Create the Shortest Path Object */
 	printf("Creating SP Object ...\n");
-	ShortestPath sp(&mgr, &CS, nstates, ninputs); // optimized
+	ShortestPath sp(&mgr, &S, nstates, ninputs); // optimized
 //	ShortestPath sp(&mgr);
 
 //	/* */
 //	printf("Checking Controller domain...\n");
-//	sp.checkControllerDom(&CS, &Contr_dom);
+//	sp.checkControllerDom(&S, &Contr_dom);
 
 
-	/* Self test. */
-	if (!sp.selftest(&CS, &SC)) exit(1);
+	/* Self Diagnostics. */
+//	sp.diagnostics(&S, &C);
+
+	ADD C_filt = sp.filterCosts(&S, &C, KEEP_VALID_STATES);
+	// Create .dot file
+	nodes_add.push_back(C_filt);
+	outfile = fopen("DCMotorCosts_filtered.dot", "w");
+	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+	fclose(outfile);
+	nodes_add.clear();
+
 
 //#define D_SP
 
@@ -220,7 +229,7 @@ void test_actual(){
 	/* Create the Cost Adjacency Matrix */
 	printf("Creating Cost Adjacency Matrix ...\n");
 	ADD AG;
-	AG = sp.createCostAdjacencyMatrix(&CS, &SC, nstates, ninputs);
+	AG = sp.createCostAdjacencyMatrix(&S, &C, nstates, ninputs);
 
 //	printf(" ***Checking createCostAdjacencyMatrix...***\n");
 //	mgr.DebugCheck();
@@ -283,7 +292,7 @@ void test_actual(){
 
 
 	/* Create the Controller. */
-	BDD controller = sp.createControllerBDD(&CS, &PA, &PA_W);
+	BDD controller = sp.createControllerBDD(&S, &PA, &PA_W);
 
 //	printf(" ***Checking createControllerBDD... ***\n");
 //	mgr.DebugCheck();
@@ -295,7 +304,7 @@ void test_actual(){
 	/* Find the All-pair Shortest Path to  a Set and create the controller. */
 	ADD APSP_W;
 	BDD PA_W;
-	sp.APtoSetSP(&CS, &SC, &W, &APSP_W, &PA_W, nstates, ninputs);
+	sp.APtoSetSP(&S, &C, &W, &APSP_W, &PA_W, nstates, ninputs);
 
 #endif
 
@@ -449,8 +458,8 @@ void example_DSP(){
 	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
 //	ShortestPath sp(&mgr);
 
-	// Self test.
-	if (!sp.selftest(&S, &C)) exit(1);
+	/* Self Diagnostics. */
+	sp.diagnostics(&S, &C);
 
 	/* Create the Cost Adjacency Matrix */
 	AG = sp.createCostAdjacencyMatrix(&S, &C, no_states, no_inputs);
@@ -747,8 +756,8 @@ void example_NDSP(){
 	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
 //	ShortestPath sp(&mgr);
 
-	// Self test.
-	if (!sp.selftest(&S, &SC)) exit(1);
+	/* Self Diagnostics. */
+	sp.diagnostics(&S, &SC);
 
 	/* Find the All-pair Shortest Path to  a Set. */
 	ADD APSP_W;

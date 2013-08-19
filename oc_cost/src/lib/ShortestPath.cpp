@@ -207,20 +207,21 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 
 	ADD SC_swapped = state_cost->SwapVariables(*add_x, *add_x_);
 
+	// Get rid of the input u. Keep only x,x'.
+	BDD S = system->ExistAbstract(existental_xx_, 0);
 
-//	ADD test = SC_swapped * system->Add();
+
+//	ADD test = SC_swapped & S.Add();
 //
 //	// Create .dot file
 //	std::vector<ADD> nodes_add;
 //	FILE *outfile;
 //	nodes_add.push_back(test);
-//	outfile = fopen("test.dot", "w");
+//	outfile = fopen("Costs_.dot", "w");
 //	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_add.clear();
 
-	// Get rid of the input u. Keep only x,x'.
-	BDD S = system->ExistAbstract(existental_xx_, 0);
 
 	// Create the Cost Adjacency Matrix.
 	AG = ((mgr_cpp->background() * ((~S).Add())) + mgr_cpp->addOne()) * SC_swapped;
@@ -2465,50 +2466,62 @@ bool ShortestPath::checkControllerDom(BDD *contrl, BDD *dom){
 
 
 
-//! Experimental. Checks whether the given system's BDD and the system costs ADD are in the right form or not. That is, if all given states are present.
-bool ShortestPath::selftest(BDD *S, ADD *costs){
+//! Experimental. Analyzes given system's BDD and system's cost ADD.
+void ShortestPath::diagnostics(BDD *S, ADD *costs){
 
-	printf("\nSelf-test initiated...");
+	printf("\n***\nDiagnostics initiated...\n");
 
-	bool success = true;
 	unsigned int count = 0;
 
 	for (unsigned int i = 0; i < no_states; i++){
 		if (S->Restrict(createMinterm(&bdd_x,i)).IsZero()){
 
-//			if (!success){
-//				break;
-//			}
 
 			if (S->Restrict(createMinterm(&bdd_x_,i)).IsZero()){
-//				printf("\n***Critical error!!! Self-test failed! System. State: %d. ", i);
+//				printf("***Warning! Invalid State: %d. ", i);
 				if (costs->Restrict(createMinterm(&add_x,i)) == mgr_cpp->plusInfinity()){
 //					printf("Cost infinity.\n");
 				}
-
-				success = false;
 				count++;
 				continue;
 			}
 
 			if (costs->Restrict(createMinterm(&add_x,i)) == mgr_cpp->plusInfinity()){
-
 				printf("***Warning! Cost infinity.  State: %d\n", i);
-//				success = false;
 			}
 		}
 	}
 
+	printf("Diagnostics end!\nNumber of invalid states: %d of %d (%.2f%%). Only %d valid.\n***\n", count, no_states, 100*((double)(count)/(double)no_states), no_states - count);
+}
 
-	if (success){
-		printf("success!\n");
+
+//! Experimental. Filters out (assigns infinity) to states that are invalid.
+ADD ShortestPath::filterCosts(BDD *S, ADD *costs, int mode){
+
+	ADD valid_states  = mgr_cpp->addZero();
+
+	if (mode == KEEP_VALID_STATES) {
+		for (unsigned int i = 0; i < no_states; i++) {
+			if (S->Restrict(createMinterm(&bdd_x, i)).IsZero()) {
+
+				if (!S->Restrict(createMinterm(&bdd_x_, i)).IsZero()) {
+					valid_states += createMinterm(&add_x, i);
+				}
+			} else {
+				valid_states += createMinterm(&add_x, i);
+			}
+		}
 	}
-	else{
-		printf("failed!!! Number invalid states: %d of %d. Only %d valid.\n", count, no_states, no_states - count);
+	else if (mode == KEEP_VALID_TRANSITIONS) {
+		for (unsigned int i = 0; i < no_states; i++) {
+			if (!S->Restrict(createMinterm(&bdd_x_, i)).IsZero()) {
+				valid_states += createMinterm(&add_x, i);
+			}
+		}
 	}
 
-	printf("Self-test end!\n\n");
-	return success;
+	return ((*costs) & valid_states);
 }
 
 
