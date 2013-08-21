@@ -63,7 +63,9 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp) {
 
 	system_bdd = NULL;
 
-} /* ShortestPath */
+	optimized = false;
+
+} /* end of ShortestPath */
 
 //! ShortestPath Constructor. Analyzes the System first.
 /**
@@ -79,7 +81,7 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp) {
  * @param no_inputs is the number of inputs the system has.
  * @see ShortestPath(Cudd *mgr_cpp)
  */
-ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, unsigned int no_inputs){
+ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, unsigned int no_inputs, bool optimized){
 
 	// Cudd Managers
 	this->mgr_cpp = mgr_cpp;
@@ -105,11 +107,22 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
 	createVariables(vars_index, no_state_vars, no_input_vars, &bdd_x, &bdd_u, &bdd_x_);
 	createVariables(vars_index, no_state_vars, no_input_vars, &add_x, &add_x_);
 
-	// Create the Existental BDD(s).
+	// Create the Existental BDD(s) and ADD(s).
 	createExistentalBDD();
+	createExistentalADD();
 
 	// System is being analyzed this way.
 	this->system_analyzed = true;
+
+	// If optimized
+	if (optimized){
+		this->optimized = false;
+		initMinterms();
+		this->optimized = true;
+	}
+	else{
+		this->optimized = false;
+	}
 
 	// Get the System's BDD.
 	system_bdd = system;
@@ -123,7 +136,7 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
 	printf("x' index begin: %3d - end: %3d\n", bdd_x_[0].getNode()->index, bdd_x_[bdd_x_.size()-1].getNode()->index);
 	printf("-\n");
 
-} /* ShortestPath */
+} /* end of ShortestPath */
 
 
 //! ShortestPath De-Constructor.
@@ -132,7 +145,7 @@ ShortestPath::ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, u
  */
 ShortestPath::~ShortestPath() {
 
-} /* ~ShortestPath */
+} /* end of ~ShortestPath */
 
 
 //! Create the Cost Adjacency Matrix of a given System. (Deterministic System)
@@ -208,7 +221,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 	ADD SC_swapped = state_cost->SwapVariables(*add_x, *add_x_);
 
 	// Get rid of the input u. Keep only x,x'.
-	BDD S = system->ExistAbstract(existental_xx_, 0);
+	BDD S = system->ExistAbstract(bddExistental_xx_, 0);
 
 
 //	ADD test = SC_swapped & S.Add();
@@ -251,7 +264,7 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
 #endif
 #endif
 	return AG;
-}/* createCostAdjacencyMatrix */
+}/* end of createCostAdjacencyMatrix */
 
 //! Creates a minterm as an BDD based on the @param node and the number of x variables available.
 /**
@@ -267,36 +280,48 @@ ADD ShortestPath::createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no
  */
 inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, int node){
 
-	unsigned int j;
 
-	BDD one  = mgr_cpp->bddOne();
-	BDD zero = mgr_cpp->bddZero();
+	if (optimized){
 
-	BDD minterm, temp;
-
-
-	minterm = one;
-
-#ifdef LSB_MSB
-	for (j = 0; j < (*x).size(); j++){
-#endif
-#ifdef MSB_LSB
-	for (j = (*x).size();;){
-		if (j==0) break; j--;
-#endif
-		if (node & 0x01){
-			temp = (*x)[j].Ite(minterm, zero);
+		if ((*x)[0].getNode()->index == bdd_x[0].getNode()->index){
+			return bdd_mterm_x[node];
 		}
 		else{
-			// row
-			temp = (*x)[j].Ite(zero, minterm);
+			return bdd_mterm_x_[node];
 		}
-		minterm = temp;
-		node >>= 1;
 	}
+	else{
+		unsigned int j;
 
-	return minterm;
-} /* createMinterm */
+		BDD one  = mgr_cpp->bddOne();
+		BDD zero = mgr_cpp->bddZero();
+
+		BDD minterm, temp;
+
+
+		minterm = one;
+
+#ifdef LSB_MSB
+		for (j = 0; j < (*x).size(); j++){
+#endif
+#ifdef MSB_LSB
+		for (j = (*x).size();;){
+			if (j==0) break; j--;
+#endif
+			if (node & 0x01){
+				temp = (*x)[j].Ite(minterm, zero);
+			}
+			else{
+				// row
+				temp = (*x)[j].Ite(zero, minterm);
+			}
+			minterm = temp;
+			node >>= 1;
+		}
+
+		return minterm;
+	}
+} /* end of createMinterm */
 
 //!
 inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, std::vector<BDD> *y, unsigned int node_x, unsigned int node_y){
@@ -339,7 +364,7 @@ inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, std::vector<BDD> *y,
 	}
 
 	return minterm;
-} /* createMinterm */
+} /* end of createMinterm */
 
 //! Creates a minterm as an ADD based on the @param node and the number of x variables available.
 /**
@@ -355,33 +380,47 @@ inline BDD ShortestPath::createMinterm(std::vector<BDD> *x, std::vector<BDD> *y,
  */
 inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, int node){
 
-	unsigned int j;
 
-	ADD one  = mgr_cpp->addOne();
-	ADD minterm, temp;
+	if (optimized){
 
-	minterm = one;
-
-#ifdef LSB_MSB
-	for (j = 0; j < (*x).size(); j++){
-#endif
-#ifdef MSB_LSB
-	for (j = (*x).size();;){
-		if (j==0) break; j--;
-#endif
-		if (node & 0x01){
-			temp = minterm * (*x)[j];
+		if ((*x)[0].getNode()->index == add_x[0].getNode()->index){
+			return add_mterm_x[node];
 		}
 		else{
-			// row
-			temp = minterm * (~(*x)[j]);
+			return add_mterm_x_[node];
 		}
-		minterm = temp;
-		node >>= 1;
-	}
 
-	return minterm;
-} /* createMinterm */
+	}
+	else{
+
+		unsigned int j;
+
+		ADD one  = mgr_cpp->addOne();
+		ADD minterm, temp;
+
+		minterm = one;
+
+#ifdef LSB_MSB
+		for (j = 0; j < (*x).size(); j++){
+#endif
+#ifdef MSB_LSB
+		for (j = (*x).size();;){
+			if (j==0) break; j--;
+#endif
+			if (node & 0x01){
+				temp = minterm * (*x)[j];
+			}
+			else{
+				// row
+				temp = minterm * (~(*x)[j]);
+			}
+			minterm = temp;
+			node >>= 1;
+		}
+
+		return minterm;
+	}
+} /* end of createMinterm */
 
 
 //! Creates a minterm as an ADD based on the @param node and the number of x variables available.
@@ -444,7 +483,7 @@ inline ADD ShortestPath::createMinterm(std::vector<ADD> *x, std::vector<ADD> *y,
 	}
 
 	return minterm;
-} /* createMinterm */
+} /* end of createMinterm */
 
 //! Creates all the variables x, u and x_ given the corresponding indexes.
 /**
@@ -480,7 +519,7 @@ void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_var
 	for (i = 0; i <  no_input_vars; i++){
 		(*u).push_back(mgr_cpp->bddVar(vars_index[no_state_vars + i]));
 	}
-} /* createVariables */
+} /* end of createVariables */
 
 
 //! Creates all the variables x, u and x_ given the corresponding indexes.
@@ -510,7 +549,7 @@ inline void ShortestPath::createVariables(std::vector<int> vars_index, int no_st
 		(*x).push_back(mgr_cpp->bddVar(vars_index[i]));
 		(*x_).push_back(mgr_cpp->bddVar(vars_index[i + (no_state_vars + no_input_vars)]));
 	}
-} /* createVariables */
+} /* end of createVariables */
 
 //! Creates all the variables x and x_ given the corresponding indexes.
 /**
@@ -555,7 +594,7 @@ void ShortestPath::createVariables(std::vector<int> vars_index, int no_state_var
 			(*x_).push_back(tempX_);
 		}
 	}
-} /* createVariables */
+} /* end of createVariables */
 
 
 //! Gets all the indexes of the variables being used, given an BDD. The total number of indexes is the total number of variables being used.
@@ -592,7 +631,7 @@ inline std::vector<int> ShortestPath::getVarsIndex(BDD *bdd){
 //	}
 
 	return vars_index;
-} /* getVarsIndex */
+} /* end of getVarsIndex */
 
 
 //! Gets all the indexes of the variables being used, given an ADD. The total number of indexes is the total number of variables being used.
@@ -619,7 +658,7 @@ inline std::vector<int> ShortestPath::getVarsIndex(ADD *add){
 	Cudd_RecursiveDeref(mgr_cpp->getManager(),scan);
 
 	return vars_index;
-} /* getVarsIndex */
+} /* end of getVarsIndex */
 
 
 //! Initializes the necessary BDDs needed to perform various "Existental" operations.
@@ -637,7 +676,7 @@ void ShortestPath::createExistentalBDD(){
 		existental[k] = 1;
 	}
 	DdNode *cube_array  = Cudd_CubeArrayToBdd(mgr,existental);
-	existental_xu = BDD(*mgr_cpp, cube_array);
+	bddExistental_xu = BDD(*mgr_cpp, cube_array);
 
 	// Get rid of u. Keep only x and x'.
 	for (unsigned k = 0; k < bdd_u[0].getNode()->index; k++){
@@ -650,9 +689,78 @@ void ShortestPath::createExistentalBDD(){
 		existental[k] = 2;
 	}
 	DdNode *cube_array1  = Cudd_CubeArrayToBdd(mgr,existental);
-	existental_xx_ = BDD(*mgr_cpp, cube_array1);
+	bddExistental_xx_ = BDD(*mgr_cpp, cube_array1);
 
-} /* createExistentalBDD */
+	// Get rid of u and x'. Keep only x.
+	for (unsigned k = 0; k < bdd_u[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_u[0].getNode()->index; k < bdd_x_[0].getNode()->index; k++){
+		existental[k] = 1;
+	}
+	for (unsigned k = bdd_x_[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
+		existental[k] = 1;
+	}
+	DdNode *cube_array2  = Cudd_CubeArrayToBdd(mgr,existental);
+	bddExistental_x = BDD(*mgr_cpp, cube_array2);
+
+} /* end of createExistentalBDD */
+
+//! Initializes the necessary ADDs needed to perform various "Existental" operations.
+void ShortestPath::createExistentalADD(){
+
+	// Get rid of x'. Keep only x and u.
+	int existental[mgr_cpp->ReadSize()];
+	for (unsigned k = 0; k < bdd_u[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_u[0].getNode()->index; k < bdd_x_[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_x_[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
+		existental[k] = 1;
+	}
+	DdNode *cube_array  = Cudd_CubeArrayToBdd(mgr,existental);
+	Cudd_Ref(cube_array);
+	DdNode *result = Cudd_BddToAdd(mgr, cube_array);
+	addExistental_xu = ADD(*mgr_cpp, result);
+	Cudd_RecursiveDeref(mgr, cube_array);
+
+	// Get rid of u and x'. Keep only x.
+	for (unsigned k = 0; k < bdd_u[0].getNode()->index; k++){
+		existental[k] = 2;
+	}
+	for (unsigned k = bdd_u[0].getNode()->index; k < bdd_x_[0].getNode()->index; k++){
+		existental[k] = 1;
+	}
+	for (unsigned k = bdd_x_[0].getNode()->index; k < (unsigned int)(mgr_cpp->ReadSize()); k++){
+		existental[k] = 1;
+	}
+	DdNode *cube_array1  = Cudd_CubeArrayToBdd(mgr,existental);
+	Cudd_Ref(cube_array1);
+	DdNode *result1 = Cudd_BddToAdd(mgr, cube_array1);
+	addExistental_x = ADD(*mgr_cpp, result1);
+	Cudd_RecursiveDeref(mgr, cube_array1);
+
+} /* end of createExistentalBDD */
+
+
+void ShortestPath::initMinterms(){
+
+	printf("ShortestPath::initMinterms().\n");
+
+	for(unsigned int i = 0; i < no_states; i++){
+		bdd_mterm_x.push_back(createMinterm(&bdd_x, i));
+		bdd_mterm_x_.push_back(createMinterm(&bdd_x_, i));
+
+		add_mterm_x.push_back(createMinterm(&add_x, i));
+		add_mterm_x_.push_back(createMinterm(&add_x_, i));
+	}
+
+	for(unsigned int i = 0; i < no_inputs; i++){
+		bdd_mterm_u.push_back(createMinterm(&bdd_u, i));
+	}
+} /* end of initMinterms */
 
 //! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector.
 /**
@@ -785,7 +893,7 @@ void ShortestPath::APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W)
 	printf("ShortestPath::APtoSetSP: Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #endif
 
-} /* APtoSetSP */
+} /* end of APtoSetSP */
 
 //! Creates a BDD with only the x states. I believe this is faster than using Cudd_bddExistAbstract(). //TODO: Check if true.
 inline BDD ShortestPath::createXstates(int no_states){
@@ -832,7 +940,7 @@ inline BDD ShortestPath::createXstates(int no_states){
 	}
 
 	return cofactor;
-}
+} /* end of createXstates */
 
 
 //! This method "relaxes" the states, i.e. updates the shortest path value and the pointer index of the states that are consideres as candidates for the Z set, i.e. the resolved set.
@@ -847,148 +955,290 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 
 
 	//
-	BDD bdd_minterm_x, bdd_minterm_u;
-	BDD XUz_rstct_x, XUz_rstct_u, XUz_rstct_x_;
-	BDD PA_W_temp;
+	BDD XUz_swapped;
+	BDD validInput, validTransition;
+	BDD bdd_minterm_x;
 	BDD bdd_zero;
-	ADD APSP_W_rstct, SC_rstct;
-	ADD APSP_W_wo_state;
-	ADD SC_rstct_x;
-	ADD end_states_x;
+
+	ADD XUz_add;
+	ADD Dwx, Dwx_, DwC, c_xux_, c_xux_swapped;
+	ADD Cdet_u;
 	ADD add_minterm_x;
+	ADD Cmin, Cndet_max, Cndet_u_max, Cdet_min;
 
-	unsigned int state_sp = 0xFFFF;
-	double current_lowest_sp;
+	//
+	DdNode *validInput_;
 
-	double no_transitions, no_endStates, count_trans;
+	bool non_deterministic = false;
+	bool deterministic = false;
+	bool add_nondet_u  = false;
 
-	bool found_sp = false;
+
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	std::vector<ADD> nodes_add;
+	FILE *outfile;
 
 	bdd_zero = mgr_cpp->bddZero();
 
-//	// Create .dot file
-//	std::vector<BDD> nodes_bdd;
-//	std::vector<ADD> nodes_add;
-//	FILE *outfile;
+	XUz_swapped = XUz->SwapVariables(*bdd_x, *bdd_x_);
 
+	// Get Dw(x).
+	Dwx = XUz->ExistAbstract(bddExistental_x).Add() & (*APSP_W);
+
+	// Get Dw(x')
+	Dwx_ = XUz_swapped.Add() & (*APSP_W);
+
+	// Get c(x,u,x'). This is basically the cost of the x'. Since SC is in the form of x,
+	// we have to swap XUz.
+	c_xux_swapped = XUz_swapped.Add() & (*SC);
+	// Now, we have the c(x,u,x') in the form of x'->u->x so we have to swap x and x'.
+	c_xux_ = c_xux_swapped.SwapVariables(*add_x, *add_x_);
+
+
+
+	// With this trick we are going to which transitions are non-deterministic,
+	// as in this case the ExistAbstract() function sums their cost.
+	ADD Dw_plus_C_swapped = c_xux_swapped + Dwx_;
+	ADD Dw_plus_C         = Dw_plus_C_swapped.SwapVariables(*add_x, *add_x_);
+	ADD c_xux_e           = Dw_plus_C.ExistAbstract(addExistental_xu);
+
+	// So, we know have an ADD in the form of (x,u), where the costs for the non-deterministic
+	// transitions have been summed up and the costs of the remaining (deterministic) transitions
+	// remain as they were. So, using Xnor we are going to see where the initial ADD (c_xux_), that
+	// holds all transitions differs with the c_xux_e where the ExistAbstract() has been applied.
+	// This difference can be used to break down the initial ADD (c_xux_) into non-deterministic and
+	// deterministic transitions.
+	ADD c_xux_ee   = c_xux_e.Xnor(Dw_plus_C);
+	ADD c_xux_det  = c_xux_ee * Dw_plus_C;
+	ADD c_xux_ndet = Dw_plus_C - c_xux_det;
+
+	// Again we are getting rid of the x' from both the on-deterministic and deterministic c(x,u,x').
+	// But in the case of the non-deterministic we are taking the maximum. This is done by a modified
+	// ExistAbstract() function, that does not sum the non-deterministic transitions but takes their maximum.
+	ADD c_xux_det_xu  = c_xux_det.ExistAbstract(addExistental_xu);
+	ADD c_xux_ndet_xu = ADD(*mgr_cpp, CuddaddExistAbstract(mgr, c_xux_ndet.getNode(), addExistental_xu.getNode()));
+
+
+	// With this trick we are creating an ADD that has two values: 1 and inf. 1 is for costs that exists, i.e.
+	// valid given costs, and inf for the rest, i.e. invalid states. This is used to filter the deterministic
+	// c(x,u,x'), which is in the form of (x,u). We are doing this, because for the invalid inputs, i.e. inputs
+	// that do not yield a transition to the Z set, their corresponding values is zero (0). But this will cause
+	// problems if we want to find the minimum of all (valid) transitions. So, we have to convert this zero to inf,
+	// to apply the Minimum function.
+	DdNode *covert = covertSomeValue(&c_xux_det_xu, mgr_cpp->addZero(), mgr_cpp->plusInfinity());
+	c_xux_det_xu = ADD(*mgr_cpp, covert);
+
+
+
+	// This might speed things up.
+	BDD xStates = XUz->ExistAbstract(bddExistental_x);
+	double avail_states = xStates.CountMinterm(no_state_vars);
+	double count_states = 0.0;
 
 	/* Iterate over all states. */
-	for (unsigned int i = 0; i < no_states; i++){
+#ifdef APtoSetSP_DEBUG
+	printf("Number of states to be relaxed: %d\n", (int)avail_states);
+#endif
+	for (unsigned int i = no_states;;){
+		if (i==0) break; i--;
 
-		XUz_rstct_x = XUz->Restrict(createMinterm(bdd_x, i));
+		add_minterm_x = createMinterm(add_x, i);
 
-		if (XUz_rstct_x.IsZero()){
+		// Deterministic c(x,u,x').
+		Cdet_u = c_xux_det_xu.Restrict(add_minterm_x);
+		// Non-deterministic c(x,u,x').
+		Cndet_u_max = c_xux_ndet_xu.Restrict(add_minterm_x);
+
+		// Check if we have deterministic transitions...
+		if (Cdet_u == mgr_cpp->plusInfinity()){
+			deterministic = false;
+		}
+		else deterministic = true;
+		// how about non-deterministic?
+		if (Cndet_u_max.IsZero()){
+			non_deterministic = false;
+		}else non_deterministic = true;
+
+		if (!non_deterministic && !deterministic){
 			continue;
 		}
 
-		// reset current_lowest_sp
-		current_lowest_sp = 0xFFFF;
-		count_trans = 0.0;
-
-		// If no_transitions == 1, then we have definitely a deterministic transition,
-		// else we have to check the inputs. This may speed things up. // TODO: check if it optimizes things.
-		no_transitions = XUz_rstct_x.CountMinterm(no_state_vars+no_input_vars);
 #ifdef APtoSetSP_DEBUG
-		printf("-State: %d. No transitions: %d\n", i, (int)no_transitions);
+		printf("-Checking State: %d\n", i);
 #endif
 
-		/* Get Cost Dw(x). */
-		APSP_W_rstct = APSP_W->Restrict(createMinterm(add_x, i));
 
-		add_minterm_x = createMinterm(add_x, i);
-		bdd_minterm_x = createMinterm(bdd_x, i);
-
-		// Check the inputs
-		for (unsigned int j = 0; j < no_inputs; j++){
-
-			bdd_minterm_u = createMinterm(bdd_u, j);
-			XUz_rstct_u   = XUz_rstct_x.Restrict(bdd_minterm_u);
-
-			if (XUz_rstct_u.IsZero()){
-				continue;
+		if (deterministic && non_deterministic){
+			// Deterministic transitions.
+			DdNode *result = Cudd_addFindMin(mgr, Cdet_u.getNode()); 	// Cdet_min  = Cdet_u.FindMin();
+			Cdet_min = ADD(*mgr_cpp, result);
+			// Non-deterministic transition.
+			Cndet_max = Cndet_u_max.FindMax();
+#ifdef APtoSetSP_DEBUG
+			printf("   All types of transitions available. Cdet_min = %.2f and Cndet_max = %.2f\n", Cdet_min.getNode()->type.value, Cndet_max.getNode()->type.value);
+#endif
+			if (Cdet_min < Cndet_max){
+				Cmin = Cdet_min;
 			}
-
-			/* Get Dw(x') + c(x,u,x'). Covers also non-determinism. */
-			end_states_x = XUz_rstct_u.SwapVariables(*bdd_x, *bdd_x_).Add();
-			SC_rstct_x   = SC->Restrict(end_states_x) + APSP_W->Restrict(end_states_x);
-
-			// In case it is non-deterministic: max(Dw(x') + c(x,u,x')).
-			SC_rstct_x   = SC_rstct_x.FindMax();
-			no_endStates = XUz_rstct_u.CountMinterm(no_state_vars);
-			count_trans += no_endStates;
+			else if (Cdet_min == Cndet_max){
 #ifdef APtoSetSP_DEBUG
-			printf(" Input: %d. No end states: %d\n", j, (int)no_endStates);
+				printf("      Deterministic and non-deterministic transitions have the same cost.\n");
 #endif
-
-			// Found a shorter or equal path...update, i.e. relax the current state.
-			// We want also the equal as in some future iteration other inputs that might be valid,
-			// can yield the same cost.
-			if (APSP_W_rstct >= SC_rstct_x){
+				Cmin = Cndet_max;
+				add_nondet_u = true;
+			}
+			else{
+				add_nondet_u = true;
+				deterministic = false;
+				Cmin = Cndet_max;
+			}
+		}
+		else if (non_deterministic){
+			add_nondet_u = true;
+			Cndet_max = Cndet_u_max.FindMax();
+			Cmin = Cndet_max;
 #ifdef APtoSetSP_DEBUG
-				printf("  Found shorter path!\n");
+			printf("   Only non-deterministic transitions available. Cndet_max = %.2f\n", Cndet_max.getNode()->type.value);
 #endif
-				found_sp = true;
+		}
+		else{
+			// Deterministic transitions.
+			DdNode *result = Cudd_addFindMin(mgr, Cdet_u.getNode()); 	// Cdet_min  = Cdet_u.FindMin();
+			Cdet_min = ADD(*mgr_cpp, result);
+			Cmin = Cdet_min;
+#ifdef APtoSetSP_DEBUG
+			printf("   Only deterministic transitions available. Cdet_min = %.2f\n", Cdet_min.getNode()->type.value);
+#endif
+		}
+
+
+//		/* Dw(x) > Dw(x') + c(x,u,x') */
+//		// Get Dw(x')
+//		Dwx_ = XUz->Restrict(add_minterm_x).Add() & (*APSP_W);
+
+
+//		DwC = Dwx_.Restrict(add_minterm_x.SwapVariables(*add_x, *add_x_)).FindMax() + Cmin;
+		DwC = Cmin;
+		if (Dwx.Restrict(add_minterm_x) >= DwC){
+#ifdef APtoSetSP_DEBUG
+			printf(" Found shorter path!\n");
+			printf(" Adding state %d with cost %.2f to the priority queue. \n", i, DwC.getNode()->type.value);
+#endif
+			bdd_minterm_x = createMinterm(bdd_x, i);
+			// Update Priority Queue.
+			pq_mincost->push(std::make_pair(DwC.getNode()->type.value, i));
+
+			if (deterministic){
+				validInput_ = getTransitionFromValue(&Cdet_u, &Cmin);
+				validInput  = BDD(*mgr_cpp, validInput_);
+
+				// Creating temp transition for the PA_W
+				validTransition = bdd_minterm_x.Ite(validInput, bdd_zero);
+
 				// Update Dw(x)
-				APSP_W_wo_state = (*APSP_W) & (~add_minterm_x);
-				*APSP_W = APSP_W_wo_state + (add_minterm_x * SC_rstct_x);
+				*APSP_W &= (~add_minterm_x);
+				*APSP_W += (add_minterm_x * DwC);
 
+				/* Update PA_W. */
+				// Remove older pointer entry
+				*PA_W &= (~bdd_minterm_x);
+				// Add new entry
+				*PA_W += validTransition;
+			}
 
-				// Shorter path found!
-				if (SC_rstct_x.getNode()->type.value < current_lowest_sp){
-					current_lowest_sp = SC_rstct_x.getNode()->type.value;
-					state_sp = i;
+			if(non_deterministic && add_nondet_u){
+				validInput_ = getTransitionFromValue(&Cndet_u_max, &Cndet_max);
+				validInput  = BDD(*mgr_cpp, validInput_);
 
-#ifdef APtoSetSP_DEBUG
-					printf("Adding state %d with cost %.3f to the priority queue. \n", state_sp, current_lowest_sp);
-#endif
-					// Update Priority Queue.
-					pq_mincost->push(std::make_pair(current_lowest_sp, state_sp));
+				// Creating temp transition for the PA_W
+				validTransition = bdd_minterm_x.Ite(validInput, bdd_zero);
 
-					// Creating temp transition for the PA_W
-					PA_W_temp = bdd_minterm_x.Ite(bdd_minterm_u, bdd_zero);
-
+				// Remove older entries from APSP_W and PA_W.
+				if (!deterministic){
+					*APSP_W &= (~add_minterm_x);
+					*PA_W   &= (~bdd_minterm_x);
+					// Update Dw(x)
+					*APSP_W += (add_minterm_x * DwC);
 				}
-				else if (SC_rstct_x.getNode()->type.value == current_lowest_sp){
-					// Several inputs can yield the same shortest path.
-					if (state_sp == i){
-						PA_W_temp += bdd_minterm_x.Ite(bdd_minterm_u, bdd_zero);
-					}
-				}
 
+				// Add new entry
+				*PA_W   += validTransition;
 			}
 
-			// If the number of transitions is one, then we have definitely a deterministic transition.
-			// This might speed things up.
-			if (no_transitions == 1.0){
-				break;
-			}
+			deterministic = false;
+			non_deterministic = false;
+			add_nondet_u = false;
 
-			// This might speed things up.
-			if (count_trans == no_transitions){
-				break;
-			}
 		}
 
-		if (found_sp){
-			// Update Pw(x). Remember that multiple inputs can yield the same shortest path (sp).
-//			PA_W_temp = mgr_cpp->bddZero();
-//			for (m = 0; m < input_sp.size(); i++){
-//				PA_W_temp  += bdd_minterm_x.Ite(createMinterm(bdd_u, input_sp[i]), bdd_zero);
-//			}
-			// Remove older pointer entry
-			*PA_W &= (~bdd_minterm_x);
-			// Add new entry
-			*PA_W += PA_W_temp;
-
-			found_sp = false;
+		count_states++;
+		// This might speed things up.
+		if (count_states == avail_states){
+			break;
 		}
-
 	}
 
 
+//	// Create .dot file
+//	nodes_bdd.push_back(testa);
+//	outfile = fopen("Ztest.dot", "w");
+//	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
+//	break;
+//
+//
+//	nodes_add.push_back(Dwx);
+//	outfile = fopen("Dwx.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(Dwx_);
+//	outfile = fopen("Dwx_.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(c_xux_);
+//	outfile = fopen("c_xux_.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(c_xux_e);
+//	outfile = fopen("c_xux_e.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(c_xux_det);
+//	outfile = fopen("c_xux_det.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(c_xux_ndet);
+//	outfile = fopen("c_xux_ndet.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(c_xux_det_xu);
+//	outfile = fopen("c_xux_det_xu.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
+//
+//	nodes_add.push_back(c_xux_ndet_xu);
+//	outfile = fopen("c_xux_ndet_xu.dot", "w");
+//	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
 
-//	nodes_add.push_back(*APSP_W);
-//	outfile = fopen("APSP_W_new.dot", "w");
+//	nodes_add.push_back(Dw_c_xu);
+//	outfile = fopen("Dw_c_xu.dot", "w");
 //	mgr_cpp->DumpDot(nodes_add, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_add.clear();
@@ -999,23 +1249,25 @@ inline void ShortestPath::relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_re
 //	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_bdd.clear();
-//#ifdef APtoSetSP_DEBUG
+
+
+#ifdef APtoSetSP_DEBUG
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
 	printf("ShortestPath::relax (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #endif
-//#endif
-} /* relax */
+#endif
+} /* end of relax */
 
 
 //! This method both implements the Xsz and Usz operators as defined in the theory.
 inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
-//#ifdef APtoSetSP_DEBUG
-//	printf("ShortestPath::operatorXUsz\n");
+#ifdef APtoSetSP_DEBUG
+	printf("ShortestPath::operatorXUsz\n");
 #ifdef ENABLE_TIME_PROFILING
 	long long start_time = get_usec();
 #endif
-//#endif
+#endif
 
 	BDD Q_swapped, Z_swapped;
 	BDD system_rstct_Z, system_rstct_ZW, system_rstct_ZWu;
@@ -1031,7 +1283,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 	system_rstct_Z  = system_bdd->Restrict(Z_swapped);
 
 	// Get rid of x'. Keep only x and u.
-	BDD system_rstct_Zxu = system_rstct_Z.ExistAbstract(existental_xu, 0);
+	BDD system_rstct_Zxu = system_rstct_Z.ExistAbstract(bddExistental_xu, 0);
 
 
 	// Filter-out the states that belong to the W set. (They are already in the W set :) )
@@ -1052,7 +1304,7 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 
 	// Now we know which state/input does not satisfy the reachability game. We only have to filter-out the x' of the BDD.
 	// Get rid of x'. Keep only "bad" x and u.
-	BDD rg_ns_x = rg_ns_xux_.ExistAbstract(existental_xu, 0);
+	BDD rg_ns_x = rg_ns_xux_.ExistAbstract(bddExistental_xu, 0);
 
 
 	// Now, remove undesired states. Of course states in the Z set have also to be removed.
@@ -1083,9 +1335,9 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 #endif
 
 
-//	// Create .dot file
-//	std::vector<BDD> nodes_bdd;
-//	FILE *outfile;
+	// Create .dot file
+	std::vector<BDD> nodes_bdd;
+	FILE *outfile;
 //
 //	nodes_bdd.push_back(Z_swapped);
 //	outfile = fopen("Z_swapped.dot", "w");
@@ -1129,16 +1381,17 @@ inline BDD ShortestPath::operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, st
 //	mgr_cpp->DumpDot(nodes_bdd, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_bdd.clear();
-//#ifdef APtoSetSP_DEBUG
+
+#ifdef APtoSetSP_DEBUG
 #ifdef ENABLE_TIME_PROFILING
 	/* Print execution time. */
 	printf("ShortestPath::operatorXUsz (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #endif
-//#endif
+#endif
 
 
 	return XUsz;
-}
+} /* end of operatorXUsz */
 
 //! This method initialized the PA_W (BDD) to include the states that belong to the target set W and their inputs. PA_W represents the refined system/controller.
 void ShortestPath::initPA_W(BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_){
@@ -1264,7 +1517,6 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 	int db_state;
 	double db_cost;
 #endif
-	double percentage = 0.0;
 
 	X = createXstates(no_states);
 	// Initialize the shortest path cost function. (Dw)
@@ -1301,7 +1553,10 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 		printf("*Iteration %d\n", iteration);
 #endif
 
-
+//		printf("%.2f%% Queue size: %d. Top state: %d\n", (1.0 - (double)left_states/no_states)*100.0, pq_mincost.size(), pq_mincost.top().second);
+		if (pq_mincost.size()==0){
+			break;
+		}
 
 		// Get the state with the minimum cost: x = min{Dw(x) | x \in Q}
 		x_temp = createMinterm(bdd_x, pq_mincost.top().second);
@@ -1314,6 +1569,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 		if (!(Z.Restrict(x_temp).IsZero())){
 			continue;
 		}
+		left_states--;
 
 #ifdef APtoSetSP_DEBUG
 		printf("==>Adding state %d to Z. Cost: %.3f<==\n", db_state, db_cost);
@@ -1324,7 +1580,6 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 		// Q = Q\x (set minus)
 		Q = Q - x_temp;
-
 
 
 #ifdef APtoSetSP_DEBUG
@@ -1350,13 +1605,15 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 
 
 
-
 		// Operator XUsz. Implements both the Xsz and Usz operators.
 		XUz = operatorXUsz(W, &W_swapped, &Q, &Z, bdd_x, bdd_u, bdd_x_);
 
+		if (XUz.IsZero()){
+			continue;
+		}
+
 		// Relax
 		relax(&XUz, APSP_W, PA_W, SC, &pq_mincost, bdd_x, bdd_u, bdd_x_, add_x, add_x_);
-
 
 
 #ifdef APtoSetSP_DEBUG
@@ -1378,22 +1635,6 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 			}
 		}
 #endif
-
-
-
-//		// Some critical error that should not happen dude!
-//		if (XUz.IsZero()){
-//			printf("***WTF?? Critical ERROR!*** (System is not satisfying the reachability game)\n");
-//			return;
-//		}
-
-		left_states--;
-
-//		if ((1 - ((double)(no_states - left_states)/100)) - percentage >= 0.05){
-//			percentage = 1.0 - ((double)(no_states - left_states)/(double)no_states);
-//			printf(" %.2f%%...", 100 * percentage);
-		printf("%.2f%%\n", (1.0 - (double)left_states/no_states)*100.0);
-//		}
 	}
 
 
@@ -1435,7 +1676,7 @@ void ShortestPath::APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, un
 	printf("ShortestPath::APtoSetSP (ND): Execution Time: %ds (%dms) (%dus)\n",  (int)(get_usec() - start_time)/1000000, (int)(get_usec() - start_time)/1000, (int)(get_usec() - start_time));
 #endif
 
-} /* APtoSetSP */
+} /* end of APtoSetSP */
 
 //! This method finds the next state to be followed to achieve the shortest path. That is, if there is no direct link.
 inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_){
@@ -1451,7 +1692,7 @@ inline unsigned int ShortestPath::findSequentNode(ADD *APSP_PA, unsigned int *ta
 	}
 
 	return *target_node;
-} /* findSequentNode */
+} /* end of findSequentNode */
 
 
 //!
@@ -1574,7 +1815,7 @@ BDD ShortestPath::createControllerBDD(BDD *S, ADD *APSP_PA, ADD *APSP_PA_W){
 
 
 	return controller;
-} /* createControllerBDD */
+} /* end of createControllerBDD */
 
 
 //! Dumps the argument BDD to file.
@@ -1600,7 +1841,7 @@ bool ShortestPath::Dddmp_cuddStore(BDD *f, char *fname, char *ddname, char **var
 
 	if (ok) return true;
 	else return false;
-} /* Dddmp_cuddStore */
+} /* end of Dddmp_cuddStore */
 
 
 //! Dumps the argument ADD to file.
@@ -1626,7 +1867,7 @@ bool ShortestPath::Dddmp_cuddStore(ADD *f, char *fname, char *ddname, char **var
 
 	if (ok) return true;
 	else return false;
-} /* Dddmp_cuddStore */
+} /* end of Dddmp_cuddStore */
 
 
 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
@@ -1819,7 +2060,7 @@ void ShortestPath::FloydWarshall(ADD *AG, ADD *APSP, ADD *PA) {
 	/* Create the C++ objects. */
 	*APSP = ADD(*mgr_cpp, S);
 	*PA   = ADD(*mgr_cpp, TR);
-} /* FloydWarshall */
+} /* end of FloydWarshall */
 
 
 //! Re-implemented method of the AddOuterSum function of the cudd library, to be used for the @ref FloydWarshall method.
@@ -1843,7 +2084,7 @@ void ShortestPath::AddOuterSumTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Re
 		mgr_cpp->getManager()->reordered = 0;
 		AddOuterSumRecurTrace(M, r, c, Result, node);
 	} while (mgr_cpp->getManager()->reordered == 1);
-} /* AddOuterSumTrace */
+} /* end of AddOuterSumTrace */
 
 
 
@@ -2010,7 +2251,7 @@ void ShortestPath::AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode
 	Result[0] = R;
 	Result[1] = T;
 
-} /* AddOuterSumRecurTrace */
+} /* end of AddOuterSumRecurTrace */
 
 
 
@@ -2038,7 +2279,7 @@ void ShortestPath::Cudd_addApplyMinTrace(DD_AOP op, DdNode * f, DdNode * g, DdNo
 		mgr_cpp->getManager()->reordered = 0;
 		cuddAddApplyRecurMinTrace(op,f,g,R,Result,node);
     } while (mgr_cpp->getManager()->reordered == 1);
-} /* Cudd_addApplyTrace */
+} /* end of Cudd_addApplyTrace */
 
 
 //! Re-implemented method of the Cudd_addApply function of the cudd library, to be used for the @ref Cudd_addApplyMinTrace method.
@@ -2156,7 +2397,7 @@ void ShortestPath::cuddAddApplyRecurMinTrace(DD_AOP op, DdNode * f, DdNode * g, 
     cuddCacheInsert2(mgr_cpp->getManager(),cacheOp,f,g,Result[0]);
     cuddCacheInsert(mgr_cpp->getManager(), DD_ADD_MINIMUM_TRACE_TAG, f, g, R, Result[1]);
 #endif
-} /* cuddAddApplyRecurTrace */
+} /* end of cuddAddApplyRecurTrace */
 
 
 //! ADD Integer and floating point minimum without node swapping. Based on the implementation of the cudd library.
@@ -2222,12 +2463,11 @@ void ShortestPath::Cudd_addApplyMin2(DdNode * f, DdNode * g, DdNode * Pf, DdNode
 		mgr_cpp->getManager()->reordered = 0;
 		cuddAddApplyMin2Recur(Cudd_addMinimumNS,f,g,Pf,Pg,Result);
     } while (mgr_cpp->getManager()->reordered == 1);
-} /* Cudd_addApplyTrace */
+} /* end of Cudd_addApplyTrace */
 
 //! Re-implemented method of the Cudd_addApply function of the cudd library, to be used for the @ref Cudd_addApplyMin2 method.
-/**
- * Implements the recursive step of the @ref Cudd_addApplyMin2.
- */
+
+//!Implements the recursive step of the @ref Cudd_addApplyMin2.
 void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result)
 {
     DdNode *res,
@@ -2380,7 +2620,387 @@ void ShortestPath::cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNo
 //    cuddCacheInsert2(mgr_cpp->getManager(),cacheOp,Pf,Pg,Result[0]);
 #endif
 
-} /* cuddAddApplyRecurTrace */
+} /* end of cuddAddApplyRecurTrace */
+
+
+
+//!
+DdNode *ShortestPath::covertSomeValue(ADD *f, ADD from, ADD to){
+	DdNode *res;
+
+	do {
+		mgr_cpp->getManager()->reordered = 0;
+		res = covertSomeValueRecur(f->getNode(), from.getNode(), to.getNode());
+    } while (mgr_cpp->getManager()->reordered == 1);
+
+	return res;
+} /* end of covertSomeValue */
+
+
+//!
+DdNode *ShortestPath::covertSomeValueRecur(DdNode *f, DdNode *from, DdNode *to) {
+
+	 DdNode *res,
+		    *fv, *fvn,
+		    *T, *E;
+
+	 unsigned int index;
+
+	statLine(dd);
+
+
+	// Change the values.
+    if (cuddIsConstant(f)){
+
+    	if (f == from){
+    		return to;
+    	}
+
+    	return f;
+    }
+
+
+	fv  = cuddT(f);
+	fvn = cuddE(f);
+
+	index = cuddI(mgr,f->index);
+
+	// True
+	T = covertSomeValueRecur(fv, from, to);
+	if (T == NULL ){
+		return NULL;
+	}
+	cuddRef(T);
+
+
+	// Else
+	E = covertSomeValueRecur(fvn, from, to);
+	if (E == NULL ){
+		Cudd_RecursiveDeref(mgr_cpp->getManager(),T);
+		return NULL;
+	}
+	cuddRef(E);
+
+
+	// If it exists return it, otherwise create the node.
+	res = (T == E) ? T : cuddUniqueInter(mgr_cpp->getManager(),(int)index,T,E);
+	if (res == NULL) {
+		printf("cuddUniqueInter FAIL!\n");
+		Cudd_RecursiveDeref(mgr_cpp->getManager(), T);
+		Cudd_RecursiveDeref(mgr_cpp->getManager(), E);
+		return NULL;
+	}
+	cuddDeref(T);
+	cuddDeref(E);
+
+	return res;
+
+} /* end of cuddAddApplyRecurTrace */
+
+
+//!
+DdNode *ShortestPath::getTransitionFromValue(ADD *Cu, ADD *value){
+
+	DdNode *res;
+	bool found = false;
+
+	do {
+		mgr_cpp->getManager()->reordered = 0;
+		res = getTransitionFromValueRecur(Cu->getNode(), value->getNode(), &found);
+    } while (mgr_cpp->getManager()->reordered == 1);
+
+//	printf("returning from getTransitionFromValue\n");
+
+	if (res == NULL){
+		return DD_ONE(mgr);
+	}
+//	printf("valid bdd\n");
+	return res;
+} /* end of getInputFromValue */
+
+
+//!
+DdNode *ShortestPath::getTransitionFromValueRecur(DdNode *f, DdNode *value, bool *found){
+
+
+    DdNode *fv, *fvn,
+	       *T, *E,
+	       *res;
+    unsigned int index;
+//    unsigned int topf;
+
+    DdNode *one, *zero;
+
+    one  = DD_ONE(mgr_cpp->getManager());
+    zero = Cudd_Not(one);
+
+//    printf("IN\n");
+
+
+    statLine(dd);
+//    res = NULL;
+    // Checking if desired value has been found.
+    if (cuddIsConstant(f)){
+
+//    	printf("f is constant\n");
+    	if (f == value){
+
+//    		printf("Found the value! Returning!\n");
+    		*found = true;
+    		return one;
+    	}
+    	return zero;
+    }
+
+
+
+	// Find the top variable.
+//    F = Cudd_Regular(f);
+//    printf("index: %d - %d\n", f->index, F->index);
+//    topf = mgr_cpp->getManager()->perm[F->index];
+//    topf  = cuddI(mgr,f->index);
+
+
+//	printf("topf = %d\n", topf);
+
+
+	/* Compute cofactors. */
+	fv  = cuddT(f);
+	fvn = cuddE(f);
+	index = cuddI(mgr,f->index);
+
+
+//	printf("TRUE\n");
+	// True
+	T = getTransitionFromValueRecur(fv, value, found);
+//	printf("AFTER TRUE\n");
+	if (T == NULL ){
+		return NULL;
+	}
+	cuddRef(T);
+
+	if (!(*found)){
+//		printf("FALSE\n");
+		// Else
+		E = getTransitionFromValueRecur(fvn, value, found);
+//		printf("AFTER FALSE\n");
+		if (E == NULL ){
+			Cudd_RecursiveDeref(mgr_cpp->getManager(),T);
+			return NULL;
+		}
+		cuddRef(E);
+
+		if (*found){
+//			Cudd_RecursiveDeref(mgr_cpp->getManager(),T);
+			T = zero;
+			cuddRef(T);
+		}
+	}
+	else{
+		E = zero;
+		cuddRef(E);
+	}
+
+	if (*found){
+
+//		printf("creating node at %d ...\n", index);
+		// If it exists return it, otherwise create the node.
+//		res = (T == E) ? T : cuddUniqueInter(mgr_cpp->getManager(),(int)index,T,E);
+//		if (res == NULL) {
+//			printf("cuddUniqueInter FAIL!\n");
+//			Cudd_RecursiveDeref(mgr_cpp->getManager(), T);
+//			Cudd_RecursiveDeref(mgr_cpp->getManager(), E);
+//			return NULL;
+//		}
+		DdNode *x = Cudd_bddIthVar(mgr, index);
+		cuddRef(x);
+		res = Cudd_bddIte(mgr, x, T, E);
+		cuddDeref(T);
+		cuddDeref(E);
+		cuddDeref(x);
+
+		return res;
+	}
+
+	return NULL;
+
+} /* end of getInputFromValue */
+
+
+/*---------------------------------------------------------------------------*/
+/* Definition of exported functions                                          */
+/*---------------------------------------------------------------------------*/
+
+/**Function********************************************************************
+
+  Synopsis    [Existentially Abstracts all the variables in cube from f.]
+
+  Description [Abstracts all the variables in cube from f by summing
+  over all possible values taken by the variables. Returns the
+  abstracted ADD.]
+
+  SideEffects [None]
+
+  SeeAlso     [Cudd_addUnivAbstract Cudd_bddExistAbstract
+  Cudd_addOrAbstract]
+
+******************************************************************************/
+DdNode *ShortestPath::CuddaddExistAbstract(DdManager * manager, DdNode * f, DdNode * cube)
+{
+    DdNode *res;
+
+    DdNode *two = cuddUniqueConst(manager,(CUDD_VALUE_TYPE) 2);
+    if (two == NULL) return(NULL);
+    cuddRef(two);
+
+    if (CuddaddCheckPositiveCube(manager, cube) == 0) {
+        (void) fprintf(manager->err,"Error: Can only abstract cubes");
+        return(NULL);
+    }
+
+    do {
+	manager->reordered = 0;
+	res = cuddAddExistAbstractRecur(manager, f, cube, two);
+    } while (manager->reordered == 1);
+
+    if (res == NULL) {
+	Cudd_RecursiveDeref(manager,two);
+	return(NULL);
+    }
+    cuddRef(res);
+    Cudd_RecursiveDeref(manager,two);
+    cuddDeref(res);
+
+    return(res);
+
+} /* end of Cudd_addExistAbstract */
+
+
+/**Function********************************************************************
+
+  Synopsis    [Checks whether cube is an ADD representing the product
+  of positive literals.]
+
+  Description [Checks whether cube is an ADD representing the product of
+  positive literals. Returns 1 in case of success; 0 otherwise.]
+
+  SideEffects [None]
+
+  SeeAlso     []
+
+******************************************************************************/
+int ShortestPath::CuddaddCheckPositiveCube(DdManager * manager, DdNode * cube)
+{
+    if (Cudd_IsComplement(cube)) return(0);
+    if (cube == DD_ONE(manager)) return(1);
+    if (cuddIsConstant(cube)) return(0);
+    if (cuddE(cube) == DD_ZERO(manager)) {
+        return(CuddaddCheckPositiveCube(manager, cuddT(cube)));
+    }
+    return(0);
+
+} /* end of addCheckPositiveCube */
+
+
+/**Function********************************************************************
+
+  Synopsis    [Performs the recursive step of Cudd_addExistAbstract.]
+
+  Description [Performs the recursive step of Cudd_addExistAbstract.
+  Returns the ADD obtained by abstracting the variables of cube from f,
+  if successful; NULL otherwise.]
+
+  SideEffects [None]
+
+  SeeAlso     []
+
+******************************************************************************/
+DdNode *ShortestPath::cuddAddExistAbstractRecur(DdManager * manager, DdNode * f, DdNode * cube, DdNode *two)
+{
+    DdNode	*T, *E, *res, *res1, *res2, *zero;
+
+    statLine(manager);
+    zero = DD_ZERO(manager);
+
+    /* Cube is guaranteed to be a cube at this point. */
+    if (f == zero || cuddIsConstant(cube)) {
+        return(f);
+    }
+
+    /* Abstract a variable that does not appear in f => multiply by 2. */
+    if (cuddI(manager,f->index) > cuddI(manager,cube->index)) {
+	res1 = cuddAddExistAbstractRecur(manager, f, cuddT(cube), two);
+	if (res1 == NULL) return(NULL);
+	cuddRef(res1);
+	/* Use the "internal" procedure to be alerted in case of
+	** dynamic reordering. If dynamic reordering occurs, we
+	** have to abort the entire abstraction.
+	*/
+	res = cuddAddApplyRecur(manager,Cudd_addTimes,res1,two);
+	if (res == NULL) {
+	    Cudd_RecursiveDeref(manager,res1);
+	    return(NULL);
+	}
+	cuddRef(res);
+	Cudd_RecursiveDeref(manager,res1);
+	cuddDeref(res);
+        return(res);
+    }
+
+//    if ((res = cuddCacheLookup2(manager, Cudd_addExistAbstract, f, cube)) != NULL) {
+//	return(res);
+//    }
+
+    T = cuddT(f);
+    E = cuddE(f);
+
+    /* If the two indices are the same, so are their levels. */
+    if (f->index == cube->index) {
+	res1 = cuddAddExistAbstractRecur(manager, T, cuddT(cube), two);
+	if (res1 == NULL) return(NULL);
+        cuddRef(res1);
+	res2 = cuddAddExistAbstractRecur(manager, E, cuddT(cube), two);
+	if (res2 == NULL) {
+	    Cudd_RecursiveDeref(manager,res1);
+	    return(NULL);
+	}
+        cuddRef(res2);
+	res = cuddAddApplyRecur(manager, Cudd_addMaximum, res1, res2);
+	if (res == NULL) {
+	    Cudd_RecursiveDeref(manager,res1);
+	    Cudd_RecursiveDeref(manager,res2);
+	    return(NULL);
+	}
+	cuddRef(res);
+	Cudd_RecursiveDeref(manager,res1);
+	Cudd_RecursiveDeref(manager,res2);
+//	cuddCacheInsert2(manager, Cudd_addExistAbstract, f, cube, res);
+	cuddDeref(res);
+        return(res);
+    } else { /* if (cuddI(manager,f->index) < cuddI(manager,cube->index)) */
+	res1 = cuddAddExistAbstractRecur(manager, T, cube, two);
+	if (res1 == NULL) return(NULL);
+        cuddRef(res1);
+	res2 = cuddAddExistAbstractRecur(manager, E, cube, two);
+	if (res2 == NULL) {
+	    Cudd_RecursiveDeref(manager,res1);
+	    return(NULL);
+	}
+        cuddRef(res2);
+	res = (res1 == res2) ? res1 :
+	    cuddUniqueInter(manager, (int) f->index, res1, res2);
+	if (res == NULL) {
+	    Cudd_RecursiveDeref(manager,res1);
+	    Cudd_RecursiveDeref(manager,res2);
+	    return(NULL);
+	}
+	cuddDeref(res1);
+	cuddDeref(res2);
+//	cuddCacheInsert2(manager, Cudd_addExistAbstract, f, cube, res);
+        return(res);
+    }
+
+} /* end of cuddAddExistAbstractRecur */
 
 
 //! Get the number of bits of an integer.

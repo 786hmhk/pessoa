@@ -86,7 +86,10 @@
 //! Cache Tag for the cache used in cuddAddApplyRecurTrace method.
 #define DD_ADD_MINIMUM_TRACE_TAG		0x6d
 
-//#define APtoSetSP_DEBUG
+
+//*************************//
+#define APtoSetSP_DEBUG
+//*************************//
 
 //! Stores the number of state and its corresponding shortest path value. Used in the priority queue.
 typedef std::pair<double, unsigned int> pair_double_int;
@@ -137,12 +140,24 @@ private:
 	// System's BDD
 	BDD *system_bdd;
 
-	// Existental BDDs
-	BDD existental_xx_;
-	BDD existental_xu;
+	// Existental BDDs and ADDs.
+	BDD bddExistental_x;
+	BDD bddExistental_xu;
+	BDD bddExistental_xx_;
+	ADD addExistental_xu;
+	ADD addExistental_x;
 
+	bool optimized;
+
+	std::vector<BDD> bdd_mterm_x;
+	std::vector<BDD> bdd_mterm_u;
+	std::vector<BDD> bdd_mterm_x_;
+	std::vector<ADD> add_mterm_x;
+	std::vector<ADD> add_mterm_x_;
 
 	unsigned int getNoBits(unsigned int number);
+
+	void initMinterms();
 
 	void AddOuterSumTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Result, unsigned int node);
 	void AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Result, unsigned int node);
@@ -155,6 +170,16 @@ private:
 	static DdNode *Cudd_addMinimumNS(DdManager * dd, DdNode ** f, DdNode ** g);
 	void Cudd_addApplyMin2(DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result);
 	void cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result);
+
+	DdNode *CuddaddExistAbstract(DdManager * manager, DdNode * f, DdNode * cube);
+	DdNode *cuddAddExistAbstractRecur(DdManager * manager, DdNode * f, DdNode * cube, DdNode *two);
+	int CuddaddCheckPositiveCube(DdManager * manager, DdNode * cube);
+
+	DdNode *covertSomeValue(ADD *f, ADD from, ADD to);
+	DdNode *covertSomeValueRecur(DdNode *f, DdNode *from, DdNode *to);
+
+	DdNode *getTransitionFromValue(ADD *Cu, ADD *value);
+	DdNode *getTransitionFromValueRecur(DdNode *f, DdNode *value, bool *found);
 
 	inline std::vector<int> getVarsIndex(BDD *bdd);
 	inline std::vector<int> getVarsIndex(ADD *bdd);
@@ -173,9 +198,9 @@ private:
 	inline BDD createXstates(int no_states);
 
 	void createExistentalBDD();
+	void createExistentalADD();
 
 	/* APtoSetSP helper functions */
-
 	inline unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
 
 	inline BDD operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
@@ -183,6 +208,7 @@ private:
 	inline void relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, pq_relax *pq_mincost, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_, std::vector<ADD> *add_x, std::vector<ADD> *add_x_);
 
 
+	/* Other functions */
 #ifdef ENABLE_TIME_PROFILING
 	long long get_usec(void);
 #endif
@@ -210,7 +236,7 @@ public:
 	 * @param no_inputs is the number of inputs the system has.
 	 * @see ShortestPath(Cudd *mgr_cpp)
 	 */
-	ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, unsigned int no_inputs);
+	ShortestPath(Cudd *mgr_cpp, BDD *system, unsigned int no_states, unsigned int no_inputs, bool optimized);
 
 	//! ShortestPath De-Constructor.
 	/**

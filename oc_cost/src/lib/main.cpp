@@ -65,8 +65,8 @@ int main(int argc, char* argv[]) {
 	printf("Main.\n\n");
 
 //	example_DSP();
-//	example_NDSP();
-	test_actual();
+	example_NDSP();
+//	test_actual();
 
 	printf("\n\nExiting Program...\n");
 
@@ -203,7 +203,7 @@ void test_actual(){
 
 	/* Create the Shortest Path Object */
 	printf("Creating SP Object ...\n");
-	ShortestPath sp(&mgr, &S, nstates, ninputs); // optimized
+	ShortestPath sp(&mgr, &S, nstates, ninputs, false); // optimized
 //	ShortestPath sp(&mgr);
 
 //	/* */
@@ -212,18 +212,18 @@ void test_actual(){
 
 
 	/* Self Diagnostics. */
-//	sp.diagnostics(&S, &C);
+	sp.diagnostics(&S, &C);
 
-	ADD C_filt = sp.filterCosts(&S, &C, KEEP_VALID_STATES);
-	// Create .dot file
-	nodes_add.push_back(C_filt);
-	outfile = fopen("DCMotorCosts_filtered.dot", "w");
-	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_add.clear();
+//	ADD C_filt = sp.filterCosts(&S, &C, KEEP_VALID_STATES);
+//	// Create .dot file
+//	nodes_add.push_back(C_filt);
+//	outfile = fopen("DCMotorCosts_filtered.dot", "w");
+//	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_add.clear();
 
 
-//#define D_SP
+#define ND_SP
 
 #ifdef D_SP
 	/* Create the Cost Adjacency Matrix */
@@ -305,6 +305,8 @@ void test_actual(){
 	ADD APSP_W;
 	BDD PA_W;
 	sp.APtoSetSP(&S, &C, &W, &APSP_W, &PA_W, nstates, ninputs);
+	printf(" ***DebugCheck() for APtoSetSP... ***\n");
+	mgr.DebugCheck();
 
 #endif
 
@@ -455,7 +457,7 @@ void example_DSP(){
 #endif
 
 	/* Create the Shortest Path Object */
-	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
+	ShortestPath sp(&mgr, &S, no_states, no_inputs, true); // optimized
 //	ShortestPath sp(&mgr);
 
 	/* Self Diagnostics. */
@@ -613,7 +615,7 @@ void example_NDSP(){
 //	state_costs[1] = 2;
 //	state_costs[2] = 4;
 //	state_costs[3] = 1;
-//	state_costs[4] = 1;
+//	state_costs[4] = 2;
 //	state_costs[5] = 10;
 //	state_costs[6] = 7;
 
@@ -632,19 +634,19 @@ void example_NDSP(){
 	// Define the System in terms of transitions.
 	#define SYSTEM_TRANSITIONS \
 							\
-							  TRANSITION(0,0,2)		\
-							+ TRANSITION(0,3,1)		\
-							+ TRANSITION(0,3,2)		\
-													\
-							+ TRANSITION(1,0,3)		\
-							+ TRANSITION(1,0,4)		\
-							+ TRANSITION(1,1,3)		\
-													\
-							+ TRANSITION(2,2,4)		\
-													\
-							+ TRANSITION(3,3,4)		\
-													\
-							+ TRANSITION(4,3,3)		\
+	  TRANSITION(0,0,2)		\
+	+ TRANSITION(0,3,1)		\
+	+ TRANSITION(0,3,2)		\
+							\
+	+ TRANSITION(1,0,3)		\
+	+ TRANSITION(1,0,4)		\
+	+ TRANSITION(1,1,3)		\
+							\
+	+ TRANSITION(2,2,4)		\
+							\
+	+ TRANSITION(3,3,4)		\
+							\
+	+ TRANSITION(4,3,3)		\
 
 	/*
 	  TRANSITION(0,0,2)		\
@@ -665,20 +667,20 @@ void example_NDSP(){
 	/*
 	  TRANSITION(0,2,1)		\
 	+ TRANSITION(0,1,6)		\
-	  	  	  	  	  	  	\
+							\
 	+ TRANSITION(1,1,3)		\
-	  	  	  	  	  	    \
+							\
 	+ TRANSITION(2,0,1)		\
 	+ TRANSITION(2,0,3)		\
 	+ TRANSITION(2,1,5)		\
-	+ TRANSITION(2,2,2)		\
-	  	  	  	  	  	    \
-	+ TRANSITION(3,3,4)		\
-	  	  	  	  	  	    \
+	+ TRANSITION(2,2,5)		\
+							\
+	+ TRANSITION(3,0,4)		\
+							\
 	+ TRANSITION(4,0,5)		\
-	  	  	  	  	  	    \
+							\
 	+ TRANSITION(5,1,4)		\
-	  	  	  	  	  	  	\
+							\
 	+ TRANSITION(6,0,0)		\
 	+ TRANSITION(6,0,2)		\
 							\
@@ -707,8 +709,8 @@ void example_NDSP(){
 
 
 	// Give the Target Set W.
-//	target_set.push_back(4);
 	target_set.push_back(3);
+	target_set.push_back(4);
 
 
 	/************************************************************************/
@@ -753,7 +755,7 @@ void example_NDSP(){
 #endif
 
 	/* Create the Shortest Path Object */
-	ShortestPath sp(&mgr, &S, no_states, no_inputs); // optimized
+	ShortestPath sp(&mgr, &S, no_states, no_inputs, false); // optimized
 //	ShortestPath sp(&mgr);
 
 	/* Self Diagnostics. */
@@ -763,6 +765,9 @@ void example_NDSP(){
 	ADD APSP_W;
 	BDD PA_W;
 	sp.APtoSetSP(&S, &SC, &W, &APSP_W, &PA_W, no_states, no_inputs);
+
+	printf(" ***Checking APtoSetSP... ***\n");
+	mgr.DebugCheck();
 
 
 //	// Create .dot file

@@ -3,3 +3,4 @@
 - For the deterministic case, think if you need to change the PA_W...by just merging the columns of the PA.
 - see constraindecomp
 - Need to know how to handle self transitions, regarding the cost to be assign to them. Self transition = zero cost OR Self transition = cost of state???
+- priority queue used in APtoSetSP() may grow unepectently large and may fail. Concider an new data structure.
