@@ -180,7 +180,7 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 
 	/* Create the Shortest Path Object */
 	mexPrintf("Creating SP Object ...\n");
-	ShortestPath sp(&mgr, &S, nstates, ninputs); // optimized
+	ShortestPath sp(&mgr, &S, nstates, ninputs, false); // optimized
 //	ShortestPath sp(&mgr);
 
 //	/* Create the Cost Adjacency Matrix */

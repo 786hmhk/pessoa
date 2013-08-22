@@ -498,7 +498,7 @@ ADD pessoa_cost2add::filterCosts(int mode){
 	BDD S = BDD(*mgr, Dddmp_cuddBddLoad(mgr->getManager(), DDDMP_VAR_MATCHIDS, NULL, NULL, NULL, DDDMP_MODE_DEFAULT, SysBDD_filename, NULL));
 
 	/* Create the Shortest Path Object */
-	ShortestPath sp(mgr, &S, nstates, ninputs);
+	ShortestPath sp(mgr, &S, nstates, ninputs, false);
 
 	return sp.filterCosts(&S, &sys_state_cost, mode);
 }

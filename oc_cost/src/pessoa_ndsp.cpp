@@ -1,11 +1,12 @@
 /*
- * pessoa_dsp.cpp
+ * pessoandsp.cpp
  *
- *  Created on: Jul 14, 2013
+ *  Created on: Aug 22, 2013
  *      Author: tanasaki
  */
 
-#include "pessoa_dsp.hh"
+#include "pessoa_ndsp.hh"
+
 
 
 void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
@@ -140,85 +141,61 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	ShortestPath sp(&mgr, &S, nstates, ninputs, false); // optimized
 //	ShortestPath sp(&mgr);
 
-	/* Create the Cost Adjacency Matrix */
-	mexPrintf("Creating Cost Adjacency Matrix ...\n");
-	ADD AG = sp.createCostAdjacencyMatrix(&S, &SC, nstates, ninputs);
-
-	/* Find All-pair Shortest Path */
-	mexPrintf("Finding All-pair Shortest Path (FW) ...\n");
-	ADD APSP;
-	ADD PA;
-	sp.FloydWarshall(&AG, &APSP, &PA);
 
 	/* Find the All-pair Shortest Path to  a Set. */
 	mexPrintf("Finding All-pair Shortest Path to a Set W ...\n");
 	ADD APSP_W;
-	ADD PA_W;
-	sp.APtoSetSP(&APSP, &PA, &W, &APSP_W, &PA_W);
+	BDD PA_W;
+	sp.APtoSetSP(&S, &SC, &W, &APSP_W, &PA_W, nstates, ninputs);
 
-	mexPrintf("Calculating D-SP done!\n");
+	mexPrintf("Calculating ND-SP done!\n");
 
 
 	/* Dump results into files. */
 	if (verbose == 3){
-		mexPrintf("Dumping PA and PA_W into files...\n");
+		mexPrintf("Dumping Controller into (.bdd) file...\n");
 	}
 
 
 	// Create the file name.
 	char *name = (char*)mxMalloc(strlen(sys_name)+5+9);
 	strcpy(name, sys_name);
-	strcat(name, "_APSP_PA");
-	strcat(name, ".add");
+	strcat(name, "Controller");
+	strcat(name, ".bdd");
 
-	DdNode *fn = PA.getNode();
+	DdNode *fn = PA_W.getNode();
 	/* Dump the PA ADD to an .add file. */
-	if (!Dddmp_cuddAddStore(mgr.getManager(), NULL, fn, NULL, NULL, DDDMP_MODE_TEXT, DDDMP_VARIDS, name, NULL))
-		mexErrMsgTxt("Error dumping the APSP PA ADD into an .add file!");
+	if (!Dddmp_cuddBddStore(mgr.getManager(), NULL, fn, NULL, NULL, DDDMP_MODE_TEXT, DDDMP_VARIDS, name, NULL))
+		mexErrMsgTxt("Error dumping the PA_W (Controller) BDD into an .bdd file!");
 
 	mxFree(name);
 
-	name = (char*)mxMalloc(strlen(sys_name)+5+11);
-	strcpy(name, sys_name);
-	strcat(name, "_APSP_PA_W");
-	strcat(name, ".add");
-	fn = PA_W.getNode();
-	/* Dump the PA_W ADD to an .add file. */
-	if (!Dddmp_cuddAddStore(mgr.getManager(), NULL, fn, NULL, NULL, DDDMP_MODE_TEXT, DDDMP_VARIDS, name, NULL))
-		mexErrMsgTxt("Error dumping the APSP PA_W ADD into an .add file!");
 
-	mxFree(name);
 
 
 
 
 
 	/* Create .dot files. */
-	FILE *outfile;
-	std::vector<BDD> nodes_bdd;
-	std::vector<ADD> nodes_add;
+//	FILE *outfile;
+//	std::vector<BDD> nodes_bdd;
+//	std::vector<ADD> nodes_add;
+//
+//
+//	// Create .dot file
+//	nodes_bdd.push_back(S);
+//	outfile = fopen("DCMotor.dot", "w");
+//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
+//
+//	// Create .dot file
+//	nodes_bdd.push_back(W);
+//	outfile = fopen("DCMotorTargetSet.dot", "w");
+//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
 
-
-	// Create .dot file
-	nodes_bdd.push_back(S);
-	outfile = fopen("DCMotor.dot", "w");
-	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_bdd.clear();
-
-	// Create .dot file
-	nodes_bdd.push_back(W);
-	outfile = fopen("DCMotorTargetSet.dot", "w");
-	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_bdd.clear();
-
-	// Create .dot file
-	nodes_add.push_back(AG);
-	outfile = fopen("System_CostAdjMatrix.dot", "w");
-	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_add.clear();
 //
 //	// Create .dot file
 //	nodes_add.push_back(APSP);
@@ -227,25 +204,20 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 //	fclose(outfile);
 //	nodes_add.clear();
 //
+
+
 //	// Create .dot file
-//	nodes_add.push_back(PA);
-//	outfile = fopen("System_APSP_PA.dot", "w");
+//	nodes_add.push_back(APSP_W);
+//	outfile = fopen("DCMotorController_APSP_W.dot", "w");
 //	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
 //	fclose(outfile);
 //	nodes_add.clear();
-
-	// Create .dot file
-	nodes_add.push_back(APSP_W);
-	outfile = fopen("System_APSP_W.dot", "w");
-	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_add.clear();
-	// Create .dot file
-	nodes_add.push_back(PA_W);
-	outfile = fopen("System_APSP_PA_W.dot", "w");
-	mgr.DumpDot(nodes_add, NULL, NULL, outfile);
-	fclose(outfile);
-	nodes_add.clear();
+//	// Create .dot file
+//	nodes_bdd.push_back(PA_W);
+//	outfile = fopen("DCMotorController.dot", "w");
+//	mgr.DumpDot(nodes_bdd, NULL, NULL, outfile);
+//	fclose(outfile);
+//	nodes_bdd.clear();
 
 
 	/* De-allocate Memory */
@@ -254,4 +226,3 @@ void mexFunction(int nlhs, mxArray *plhs[], int nrhs, const mxArray *prhs[]){
 	mxFree(bddsys_tset_name);
 	mxFree(sys_name);
 }
-

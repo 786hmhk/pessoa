@@ -14,7 +14,7 @@ MEXFLAGS   = -cxx CC='$(CXX)' CXX='$(CXX)' LD='$(CXX)' CXXFLAGS='$(CXXFLAGS)'
 COL_ON  = \033[0;32m
 COL_OFF = \033[m
 
-all: oc_sp_mex pessoa_cost2add.$(MEXSUFFIX)
+all: oc_sp_mex pessoa_cost2add.$(MEXSUFFIX) pessoa_dspController.$(MEXSUFFIX) pessoa_dsp.$(MEXSUFFIX) pessoa_ndsp.$(MEXSUFFIX)
 
 oc_sp_mex: shortestPathMex.$(MEXSUFFIX)
 
@@ -22,8 +22,20 @@ shortestPathMex.$(MEXSUFFIX): shortestPathMex.cpp $(SP_DIR)/cuddObj.cpp $(SP_DIR
 	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/shortestPathMex
 	@echo "${COL_ON}\n Compilation Successful!\n Add $(CURDIR) into your MATLAB path.\n ${COL_OFF}"
 
-pessoa_cost2add.$(MEXSUFFIX): pessoa_cost2add.cpp $(SP_DIR)/src/cuddObj.cc
+pessoa_cost2add.$(MEXSUFFIX): pessoa_cost2add.cpp $(SP_DIR)/src/cuddObj.cc $(SP_DIR)/src/ShortestPath.cpp
 	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_cost2add
+	@echo "${COL_ON}\n Compilation Successful!\n${COL_OFF}"
+
+pessoa_dsp.$(MEXSUFFIX): pessoa_dsp.cpp $(SP_DIR)/src/cuddObj.cc $(SP_DIR)/src/ShortestPath.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_dsp
+	@echo "${COL_ON}\n Compilation Successful!\n${COL_OFF}"
+	
+pessoa_ndsp.$(MEXSUFFIX): pessoa_ndsp.cpp $(SP_DIR)/src/cuddObj.cc $(SP_DIR)/src/ShortestPath.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_ndsp
+	@echo "${COL_ON}\n Compilation Successful!\n${COL_OFF}"
+	
+pessoa_dspController.$(MEXSUFFIX): pessoa_dspController.cpp $(SP_DIR)/src/cuddObj.cc $(SP_DIR)/src/ShortestPath.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_dspController
 	@echo "${COL_ON}\n Compilation Successful!\n${COL_OFF}"
 	
 
