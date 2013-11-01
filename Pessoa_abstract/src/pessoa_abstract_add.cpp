@@ -659,7 +659,7 @@ void mexFunction( int nlhs, mxArray *plhs[],
 	k=0;
 	for(int i=0;i<n;i++){
 		for(int j=0;j<m;j++){
-			bd[k]= bdv[i+j*m];
+			bd[k]= bdv[i+j*n];
 			k++;
 		}
 	}	

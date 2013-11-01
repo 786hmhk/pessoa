@@ -58,7 +58,7 @@ case "${host_os}" in
     case "${host_cpu}" in
       x86_64)
          platform_arch="x86_64"
-         CUDD_ICFLAGS="-g -O6 -fPIC"
+         CUDD_ICFLAGS="-g -fPIC"
          CUDD_XCFLAGS="-mtune=native -DHAVE_IEEE_754 -DBSD -DSIZEOF_VOID_P=8 -DSIZEOF_LONG=8"
       ;;
     i386|i686)
@@ -76,7 +76,7 @@ case "${host_os}" in
     case "${host_cpu}" in
       x86_64)
          platform_arch="x86_64"
-         CUDD_ICFLAGS="-g -O6 -fPIC"
+         CUDD_ICFLAGS="-g -fPIC"
          CUDD_XCFLAGS="-fPIC -DPIC -DHAVE_IEEE_754 -DSIZEOF_VOID_P=8 -DSIZEOF_LONG=8 -DHAVE_IEEE_754 -fno-common"
       ;;
     i386|i686)

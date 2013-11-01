@@ -8,7 +8,7 @@ CC	= @CC@
 RANLIB	= @RANLIB@
 
 MFLAG	=
-ICFLAGS = -g -O6 -Wall
+ICFLAGS = -g -Wall
 CFLAGS  = $(ICFLAGS) $(MFLAG) $(XCFLAGS)
 
 #LINTFLAGS = -u -n
