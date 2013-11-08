@@ -89,7 +89,11 @@ if isfield(name_cont,'A') && isfield(name_cont,'B') && ~isfield(name_cont,'num_s
 	mu	= name_symb.mu;
 	eta = name_symb.eta;
 
-	pessoa_abstract_add(filename_symb_sys,verbose,Ad,Bd,minp,vmax,xoffset,uoffset,xoob,xset,uset,tau,mu,eta); 
+	if ~params_cont.custom
+		pessoa_abstract_add(filename_symb_sys,verbose,Ad,Bd,minp,vmax,xoffset,uoffset,xoob,xset,uset,tau,mu,eta);
+	else
+		pessoa_abstract(filename_symb_sys,verbose);
+	end
 else
 	pessoa_abstract(filename_symb_sys,verbose);
 end
