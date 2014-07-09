@@ -1,0 +1,38 @@
+### How to use examples ###
+
+%%% Deterministic %%%
+
+[...]
+
+(You can ommit pss_design)
+
+% Assign Costs to the states. Do this in the pss_cost_def.m
+pss_build_cost(DCMotor_name, BatchSize, Verbose);
+
+%% Create the Cost Adjacency Matrix and compute the APSP.
+disp('Calculating the Deterministic APSP.');
+pessoa_dsp(system_name, verbose);
+
+%% Refine the Controller using APSP
+pss_design_DSP(DCMotor_name, Verbose);
+
+%% Simulate closed-loop
+
+[...]
+
+
+%%% Non-Deterministic %%%
+
+[...]
+
+(You can ommit pss_design)
+
+% Assign Costs to the states. Do this in the pss_cost_def.m
+pss_build_cost(DCMotor_name, BatchSize, Verbose);
+
+%% Refine the Controller using APSP
+pss_design_NDSP(DCMotor_name, Verbose);
+
+%% Simulate closed-loop
+
+[...]

@@ -1,0 +1,33 @@
+#----------------------------------------------------------------------------#
+# Makefile for Pessoa							     #
+# Delft University of Technology - DCSC                                      #
+# Version @VERSION@, July, 2013	                                     	     #
+#----------------------------------------------------------------------------#
+
+  MEXSUFFIX  = mex
+  DIR        = ../..
+
+  MEX        = @MEX@
+  CXX        = @CXX@
+  OBJFILES   = $(CUDD_DIR)/util/datalimit.o $(CUDD_DIR)/util/cpu_time.o $(CUDD_DIR)/util/safe_mem.o $(DIR)/library/src/pessoa.o
+  CFLAGS     = -L$(MATLABHOME)/bin/$(SYSTEMEX) -L$(CUDD_DIR)/dddmp -L$(CUDD_DIR)/epd -L$(CUDD_DIR)/util -L$(CUDD_DIR)/st -L$(CUDD_DIR)/mtr -L$(CUDD_DIR)/cudd -L$(CUDD_DIR)/include
+  LIBS       = -lmex -lmx -lmat -lcudd -lmtr -lst -lutil -lepd -ldddmp
+  INCLUDE    = -I$(MATLABHOME)/extern/include -I$(CUDD_DIR)/include -I$(DIR)/library/src
+  MEXFLAGS   = -cxx CC='$(CXX)' CXX='$(CXX)' LD='$(CXX)'
+
+
+
+all: pessoa_cost2add.$(MEXSUFFIX) pessoa_dspController.$(MEXSUFFIX) pessoa_dsp.$(MEXSUFFIX) pessoa_ndsp.$(MEXSUFFIX)
+
+	
+pessoa_cost2add.$(MEXSUFFIX): pessoa_cost2add.cpp lib/cuddObj.cpp lib/ShortestPath.cpp lib/FibonacciHeap.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_cost2add
+
+pessoa_dsp.$(MEXSUFFIX): pessoa_dsp.cpp lib/cuddObj.cpp lib/ShortestPath.cpp lib/FibonacciHeap.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_dsp
+	
+pessoa_ndsp.$(MEXSUFFIX): pessoa_ndsp.cpp lib/cuddObj.cpp lib/ShortestPath.cpp lib/FibonacciHeap.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_ndsp
+	
+pessoa_dspController.$(MEXSUFFIX): pessoa_dspController.cpp lib/cuddObj.cpp lib/ShortestPath.cpp lib/FibonacciHeap.cpp
+	$(MEX) $(MEXFLAGS) $(CFLAGS) $(INCLUDE) $(LIBS) $(OBJFILES) $^ -output ../bin/pessoa_dspController

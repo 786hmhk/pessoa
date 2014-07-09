@@ -1,0 +1,439 @@
+/**
+ * @file
+ * @author Athanasios Tasoglou <tasoglou@gmail.com>
+ * @version 0.92
+ *
+ * @section LICENSE
+ *
+ * Copyright (c) 2013, TU Delft: Delft University of Technology
+ * All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions are met:
+ *     * Redistributions of source code must retain the above copyright
+ *       notice, this list of conditions and the following disclaimer.
+ *     * Redistributions in binary form must reproduce the above copyright
+ *       notice, this list of conditions and the following disclaimer in the
+ *       documentation and/or other materials provided with the distribution.
+ *     * Neither the name of TU Delft: Delft University of Technology nor the
+ *       names of its contributors may be used to endorse or promote products
+ *       derived from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ * ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+ * WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+ * DISCLAIMED. IN NO EVENT SHALL TU DELFT: DELFT UNIVERSITY OF TECHNOLOGY BE LIABLE FOR ANY
+ * DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+ * (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+ * LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ * ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+ * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+ * SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ *
+ *
+ * @section DESCRIPTION
+ *
+ * This file contains the ShortestPath Class that is used to construct the
+ * DD's used in optimal control.
+ *
+ * 		No details yet.
+ */
+
+
+#ifndef SHORTESTPATH_H_
+#define SHORTESTPATH_H_
+
+
+#include <cstdio>
+#include <string>
+#include <vector>
+#include <queue>
+#include <list>
+#include <map>
+#include <hash_map>
+#include <climits>
+
+
+// C Libs
+#include "cudd.h"
+#include "util.h"
+#include "cuddInt.h"
+#include "dddmp.h"   // for storing DD into files.
+// C++ Lib
+#include "cuddObj.hh"
+#include "FibonacciHeap.hh"
+
+//!
+//#define LSB_MSB
+#define MSB_LSB
+
+#ifdef LSB_MSB
+#undef MSB_LSB
+#endif
+#ifdef MSB_LSB
+#undef LSB_MSB
+#endif
+
+//! Enables or Disables the use of the cudd cache in some operations.
+//#define ENABLE_CACHE
+#define ENABLE_TIME_PROFILING
+
+
+#ifdef ENABLE_TIME_PROFILING
+#include <sys/time.h>
+#endif
+
+// Cache Tags
+//! Cache Tag for the cache used in AddOuterSumRecurTrace method.
+#define DD_ADD_OUT_SUM_TRACE_TAG		0x6f
+//! Cache Tag for the cache used in cuddAddApplyRecurTrace method.
+#define DD_ADD_MINIMUM_TRACE_TAG		0x6d
+
+
+//*************************//
+#define APtoSetSP_DEBUG
+#define C_CPP_PRINT
+//*************************//
+
+//! Stores the number of state and its corresponding shortest path value. Used in the priority queue.
+typedef std::pair<double, unsigned int> pair_double_int;
+//! Priority queue to store the state number with the minimum cost. Used in the Relax method.
+//typedef UniquePriorityQueue<pair_double_int, std::vector<pair_double_int>, std::greater<pair_double_int> > pq_relax;
+//typedef std::priority_queue<pair_double_int, std::vector<pair_double_int>, std::greater<pair_double_int> > pq_relax;
+
+#define KEEP_VALID_STATES 		1
+#define KEEP_VALID_TRANSITIONS 	2
+
+
+
+//! This is the main class for generating the DD's used in optimal control.
+//! Supports both deterministic and non-deterministic systems.
+/*!
+This class is used to construct the ADD containing the shortest path values
+from all states to the target set W and the ADD containing the actual path.
+
+This class can be used to do the following:
+- Create the Cost Adjacency Matrix, given the System's BDD and the ADD containing the cost
+of each state (@ref createCostAdjacencyMatrix). Supports only Deterministic Systems.
+- Find the all-pair shortest path and the pointer array, given the Cost Adjacency Matrix
+(@ref FloydWarshall).
+- Find the shortest path form all-pairs to a given set W (@ref APtoSetSP). Supports both deterministic and non-deterministic systems.
+- Create a refined system, given the information on the shortest path (@ref createControllerBDD).
+*/
+class ShortestPath {
+
+private:
+
+	// C++ manager.
+	Cudd *mgr_cpp;
+	// C manager.
+	DdManager *mgr;
+	// Systems variables.
+	unsigned int no_states;
+	unsigned int no_inputs;
+	unsigned int no_state_vars;
+	unsigned int no_input_vars;
+	std::vector<BDD> bdd_x;
+	std::vector<BDD> bdd_u;
+	std::vector<BDD> bdd_x_;
+	std::vector<ADD> add_x;
+//	std::vector<ADD> add_u;
+	std::vector<ADD> add_x_;
+	// If the System has been analyzed yet.
+	bool system_analyzed;
+
+	// System's BDD
+	BDD *system_bdd;
+
+	// Object needed to create the desired heap (Currently only Fibonacci Heap supported)
+	HeapD<FibonacciHeap> heapD;
+
+	// Existental BDDs and ADDs.
+	BDD bddExistental_x;
+	BDD bddExistental_xu;
+	BDD bddExistental_xx_;
+	ADD addExistental_xu;
+	ADD addExistental_x;
+//	ADD addExistental_x_;
+
+	bool optimized;
+
+	std::vector<BDD> bdd_mterm_x;
+	std::vector<BDD> bdd_mterm_u;
+	std::vector<BDD> bdd_mterm_x_;
+	std::vector<ADD> add_mterm_x;
+	std::vector<ADD> add_mterm_x_;
+
+	unsigned int *SequentNodePointer;
+
+	unsigned int getNoBits(unsigned int number);
+
+	void initMinterms();
+
+	ADD OuterSum(const ADD& M, const ADD& r, const ADD& c);
+
+	void AddOuterSumTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Result, unsigned int node);
+	void AddOuterSumRecurTrace(DdNode *M, DdNode *r, DdNode *c, DdNode **Result, unsigned int node);
+
+	void cuddAddMinimumRecur(DdNode ** f, DdNode ** g, DdNode * R, DdNode **Result, int node);
+	void Cudd_addApplyMinTrace(DD_AOP op, DdNode * f, DdNode * g, double * R, DdNode **Result, int node);
+	void cuddAddApplyRecurMinTrace(DD_AOP op, DdNode * f, DdNode * g, double * R, DdNode **Result, int node);
+
+	void minimum2(ADD *f, ADD *g, ADD *P);
+	static DdNode *Cudd_addMinimumNS(DdManager * dd, DdNode ** f, DdNode ** g);
+	void Cudd_addApplyMin2(DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result);
+	void cuddAddApplyMin2Recur(DD_AOP op, DdNode * f, DdNode * g, DdNode * Pf, DdNode * Pg, DdNode **Result);
+
+	DdNode *CuddaddExistAbstract(DdManager * manager, DdNode * f, DdNode * cube);
+	DdNode *cuddAddExistAbstractRecur(DdManager * manager, DdNode * f, DdNode * cube, DdNode *two);
+	int CuddaddCheckPositiveCube(DdManager * manager, DdNode * cube);
+
+	DdNode *covertSomeValue(ADD *f, ADD from, ADD to);
+	DdNode *covertSomeValueRecur(DdNode *f, DdNode *from, DdNode *to);
+
+	DdNode *getTransitionFromValue(ADD *Cu, ADD *value);
+	DdNode *getTransitionFromValueRecur(DdNode *f, DdNode *value, bool *found);
+
+	std::vector<int> getVarsIndex(BDD *bdd);
+	std::vector<int> getVarsIndex(ADD *bdd);
+
+	BDD createMinterm(std::vector<BDD> *x, int node);
+	BDD createMinterm(std::vector<BDD> *x, std::vector<BDD> *y, unsigned int node_x, unsigned int node_y);
+	ADD createMinterm(std::vector<ADD> *x, int node);
+	ADD createMinterm(std::vector<ADD> *x, std::vector<ADD> *y, int x_node, int y_node);
+
+	ADD createColumn(std::vector<ADD> *y, unsigned int column);
+
+	void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<BDD> *x, std::vector<BDD> *u, std::vector<BDD> *x_);
+	void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<BDD> *x, std::vector<BDD> *x_);
+	void createVariables(std::vector<int> vars_index, int no_state_vars, int no_input_vars, std::vector<ADD> *x, std::vector<ADD> *x_);
+
+	BDD createXstates(int no_states);
+
+	void createExistentalBDD();
+	void createExistentalADD();
+
+	/* APtoSetSP helper functions */
+	unsigned int findSequentNode(ADD *APSP_PA, unsigned int *target_node, std::vector<ADD> *x_);
+
+	BDD operatorXUsz(BDD *W, BDD *W_swapped, BDD *Q, BDD *Z, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
+	void initPA_W(BDD *S, BDD *W, BDD *W_swapped, BDD *PA_W, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_);
+	void relax(BDD *XUz, ADD *APSP_W, BDD *PA_W, ADD *SC, Heap *heap, std::vector<BDD> *bdd_x, std::vector<BDD> *bdd_u, std::vector<BDD> *bdd_x_, std::vector<ADD> *add_x, std::vector<ADD> *add_x_);
+
+
+	/* Other functions */
+#ifdef ENABLE_TIME_PROFILING
+	long long get_usec(void);
+#endif
+
+
+public:
+	//! ShortestPath Constructor.
+	/**
+	 * It assumes the CUDD manager has already been initialized.
+	 * @param mgr_cpp the pointer to the CUDD manager's object.
+	 */
+	ShortestPath(Cudd *mgr_cpp);
+
+	//! ShortestPath Constructor. Analyzes the System first.
+	/**
+	 * It assumes the CUDD manager has already been initialized. It takes also as argument the
+	 * system in order to analyze it and creates the system variables that are going to be needed
+	 * in the methods of this class. The purpose of this is to speed up all methods that need the
+	 * system variables. Use this constructor if know in advance that you are going to use more than
+	 * one method for one particular system.
+	 *
+	 * @param mgr_cpp the pointer to the CUDD manager's object.
+	 * @param S is the pointer to the BDD of the system.
+	 * @param no_states is the number of states the system has.
+	 * @param no_inputs is the number of inputs the system has.
+	 * @param optimized a flag to enable optimizations.
+	 * @see ShortestPath(Cudd *mgr_cpp)
+	 */
+	ShortestPath(Cudd *mgr_cpp, BDD *S, unsigned int no_states, unsigned int no_inputs, bool optimized);
+
+	//! ShortestPath Constructor. Analyzes the System first.
+	/**
+	 * It assumes the CUDD manager has already been initialized. It takes also as argument the
+	 * system in order to analyze it and creates the system variables that are going to be needed
+	 * in the methods of this class. The purpose of this is to speed up all methods that need the
+	 * system variables. Use this constructor if know in advance that you are going to use more than
+	 * one method for one particular system.
+	 *
+	 * __Note__: Although it is obvious that we may compute the number of variables needed for the total number of
+	 * states/inputs, this may not always the case. The reason for that is because we might need 1 or more to encode
+	 * other information. For example there might be the case were we use one extra bit to denote "out ouf bounds"
+	 * situation when creating the discrete abstraction.
+	 *
+	 * @param mgr_cpp the pointer to the CUDD manager's object.
+	 * @param S is the pointer to the BDD of the system.
+	 * @param no_states is the number of states the system has.
+	 * @param no_inputs is the number of inputs the system has.
+	 * @param no_states_vars is the number of the state variables that are needed to encode the number of states.
+	 * @param no_inputs_vars is the number of the input variables that are needed to encode the number of inputs.
+	 * @param optimized a flag to enable optimizations.
+	 * @see ShortestPath(Cudd *mgr_cpp)
+	 */
+	ShortestPath(Cudd *mgr_cpp, BDD *S, unsigned int no_states, unsigned int no_inputs, unsigned int no_states_vars, unsigned int no_inputs_vars, bool optimized);
+
+	//! ShortestPath De-Constructor.
+	/**
+	 * Nothing special yet. :)
+	 */
+	virtual ~ShortestPath();
+
+	//! Create the Cost Adjacency Matrix of a given System. (Deterministic System)
+	/**
+	 * Given the System's BDD and the cost of each state, as an ADD, this method constructs the
+	 * Cost Adjacency Matrix of the System. This is done, by first extracting a valid transition
+	 * (x,u,x') and then attaching the corresponding cost of that transition c(x,u,x').\n
+	 *
+	 * __Important Notice__: This method assumes only deterministic systems. If for one input, more than
+	 * one end nodes exist, then only the first one encountered is being taken into account.
+	 *
+	 * @param system is the pointer to the System's BDD.
+	 * @param state_cost is the pointer to the ADD, describing the cost of each state of the system.
+	 * @param no_states is the number of states of the System.
+	 * @param no_inputs is is the number of the inputs of the System.
+	 * @return The ADD of the Cost Adjacency Matrix.
+	 */
+	ADD createCostAdjacencyMatrix(BDD *system, ADD *state_cost, int no_states = 0, int no_inputs = 0);
+
+	 //! Given the Cost Adjacency Matrix of a DD, get the all-pair shortest path values and the pointer array used to trace back the desired shortest path.
+	/**
+	* Method takes as input the Cost Adjacency Matrix of the System as an ADD and returns the all-pairs shortest
+	* path values and the pointer array. To receive the return values, two ADD objects have to be passed as arguments.
+	* Implements the well-known Floyd-Warshall algorithm.\n
+	* __Important Notice__:
+	* - This method assumes that the arguments (ASPS, PA), which are used to pass the result,
+	* have been already allocated. Empty pointers of these will result to an error!
+	* - In the pointer array the value of the node is incremented by one. This is done because we use zero to denote that no intermediate node exist. So, when
+	* for example node 0 is being added to the pointer array for some minterm, then it will show up as 1.
+	* @param AG is the pointer to the System's BDD.
+	* @param APSP is the _allocated_ pointer to the ADD for returning the APSP cost values.
+	* @param PA is the _allocated_ pointer to the ADD for returning the pointer array of the APSP.
+	* @see createCostAdjacencyMatrix, AddOuterSumTrace, AddOuterSumRecurTrace
+	*/
+	void FloydWarshall(ADD *AG, ADD *APSP, ADD *PA);
+
+	//! Applies the "safety game" to get the new target set \f$W_S \subseteq W\f$, which will guarantee us a transition inside \f$W\f$.
+	/**
+	 * This method solves the "safety game" for specification set \f$W\f$, i.e. the initial target set. It will return the new set \f$W_S \subseteq W\f$, for which it it
+	 * guarantees that for all \f$x \in W_S\f$, there exists \f$u \in U(x)\f$ such that \f$Post_{u}(x) \in W\f$. Furthermore, there is the option to return a refined system,
+	 * that has all its unsafe states and inputs removed.
+	 *
+	 * @param W a pointer of W the BDD of the initial target set W.
+	 * @param S a pointer of S the BDD of the system. May be omitted. If it is omitted, it considers the system that has been given through the constructor.
+	 * @param S_safe a pointer to return the S_safe result. (Optional. Use NULL for no result to be returned)
+	 * @return the BDD of the new "safe" target set.
+	 * @see APtoSetSP
+	 */
+	BDD getSafeTargetSet(BDD *W, BDD *S = NULL, BDD *S_safe = NULL);
+
+	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports only deterministic transitions.
+	/**
+	 * This method takes as input the DDs containing the all-pairs shortest path values, the pointer array of the all-pairs shortest path and a target set W,
+	 * for which we want to find the shortest path from all the pairs to that set. The set is given as vector of integers, denoting the states. The method
+	 * returns the vector containing the shortest path value as ADD and the pointer vector that shows which node to follow to achieve the shortest path value.\n
+	 *
+	 * __Important Notice__:
+	 * - Memory should have been already allocated for the results (<strong class="paramname">APSP_W</strong> and <strong class="paramname">PA_W</strong>).
+	 * - The pointer does not contain the "map" to achieve the shortest path value from all pairs not the set. It only contains the intermediate node
+	 * to be followed in order to achieve the minimum path. Therefore this result should be used together with the initial pointer array (<strong class="paramname">PA</strong>).
+	 *
+	 * @param APSP is the ADD containing the all-pairs shortest path values.
+	 * @param PA is the ADD containing the pointer array of the APSP.
+	 * @param W	is the desired target set given as a BDD.
+	 * @param APSP_W is the returned ADD, containing the all-pairs shortest path values to the set W.
+	 * @param PA_W is the returned ADD, containing the intermediate nodes to be followed to achieve the all-pairs shortest path to the set W. This result should be used
+	 *        together with the PA ADD.
+	 * @see   FloydWarshall, APtoSetSP, Cudd_addApplyMin2, cuddAddApplyMin2Recur
+	 */
+	void APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W);
+
+	//! Finds the shortest path from all pairs to a given target set W. Returns the vector containing the shortest path values and the pointer vector. Supports also non-deterministic transitions.
+	/**
+	 * This method is used mainly to solve the non-deterministic shortest path problem. It is based on the reachability game that is performed by the operators \f$X_{S_{Z}}\f$ and \f$U_{S_{Z}}\f$ (operatorXUsz).
+	 * These operators point out the next valid state-input(s), i.e. the next candidate (with its valid inputs) for the Z set. That is the set that holds the states where the shortest path has been computed.
+	 * For each of these states the relax() function is called, which updates the shortest path value towards the target set and adds these states to a priority queue. Based on that queue the state with the
+	 * lowest cost value is added to the Z set and is marked as resolved. The process ends when all states have been resolved. \n
+	 * This method supports also deterministic systems.
+	 *
+	 *__Important Notice__:
+	 * - This algorithm assumes that the liveness constraints of the system/controller have been already solved. That is, it is guaranteed that the target set <strong class="paramname">W</strong> can been reached by all
+	 *	 states of the system/controller.
+	 * - It is highly suggested to use this method together with the getSafeTargetSet() method, such that <strong class="paramname">S</strong> and <strong class="paramname">W</strong> satisfy the safety game.
+	 * - This method assumes that the arguments (<strong class="paramname">APSP_W</strong>, <strong class="paramname">PA_W</strong>), which are used to pass the result, have been already allocated. Empty pointers of these will result to an error!
+	 *
+	 * @param S is the pointer to the System's BDD.
+	 * @param SC is the pointer to the System's costs ADD.
+	 * @param W is the pointer to the target set.
+	 * @param APSP_W is the _allocated_ pointer that will hold / will store the all-pairs to a target set shortest path values. (Is used to return the result)
+	 * @param PA_W is the _allocated_ pointer the will hold / will store the new refined system. (Is used to return the result)
+	 * @param no_states is the number of states of the system.
+	 * @param no_inputs is the number of inputs of the system.
+	 * @see operatorXUsz, relax
+	 */
+	void APtoSetSP(BDD *S, ADD *SC, BDD *W, ADD *APSP_W, BDD *PA_W, unsigned int no_states, unsigned int no_inputs);
+
+	//! Creates a BBD of the new refined controller in form of (x,u), based on the old one and the results of the Deterministic Shortest Path (@ref APtoSetSP).
+	/**
+	 * This method first checks how to get to the target node, by looking at the FW pointer array. If it is zero, it means that we have a direct link and nothing has to be done.
+	 * Otherwise it finds the next (subsequent) node towards the target set, by calling the findSequentNode() method. In any case, as soon as it finds a valid states it records also
+	 * the valid inputs. The final result is a BDD of the refined system in the form of (x,u).
+	 *
+	 * @param S a pointer to the BDD of the initial system, i.e. the controller that needs to be refined.
+	 * @param W a pointer of the BDD of the target set.
+	 * @param APSP_PA a pointer to the ADD representing the all-pairs to a target set shortest path values.
+	 * @param APSP_PA_W a pointer to the ADD representing the all-pairs to a target set shortest path pointer array.
+	 * @return a BDD of the refined system in the form of (x,u).
+	 * @see APtoSetSP(ADD *APSP, ADD *PA, BDD *W, ADD *APSP_W, ADD *PA_W), findSequentNode
+	 */
+	BDD createControllerBDD(BDD *S, BDD *W, ADD *APSP_PA, ADD *APSP_PA_W);
+
+	//! Dumps the argument BDD to file.
+	/** Dumping is done through Dddmp_cuddBddArrayStore. A dummy array of 1 BDD root is used for this purpose.
+	 *
+	 * @param f is the BDD to be dumped.
+	 * @param fname is the file name, containing the dumped BDD.
+	 * @param ddname is the DD name (or NULL).
+	 * @param varnames is the array of variable names (or NULL)
+	 * @param auxids is the array of converted var ids.
+	 * @param mode is the storing mode selector.
+	 * @param varinfo is used for extra info for the variables in text mode.
+	 * @param fp is the file pointer to the store file
+	 * @return returns whether the dump was successful or not.
+	 * @see dddmp.h in the CUDD Library for more info.
+	 */
+	bool Dddmp_cuddStore(BDD *f, char *fname, char *ddname = NULL, char **varnames = NULL, int *auxids = NULL, int mode = DDDMP_MODE_TEXT, Dddmp_VarInfoType varinfo = DDDMP_VARIDS, FILE *fp = NULL);
+
+	//! Dumps the argument ADD to file.
+	/** Dumping is done through Dddmp_cuddBddArrayStore. A dummy array of 1 BDD root is used for this purpose.
+	 *
+	 * @param f is the ADD to be dumped.
+	 * @param fname is the file name, containing the dumped BDD.
+	 * @param ddname is the DD name (or NULL).
+	 * @param varnames is the array of variable names (or NULL)
+	 * @param auxids is the array of converted var ids.
+	 * @param mode is the storing mode selector.
+	 * @param varinfo is used for extra info for the variables in text mode.
+	 * @param fp is the file pointer to the store file
+	 * @return returns whether the dump was successful or not.
+	 * @see dddmp.h in the CUDD Library for more info.
+	 */
+	bool Dddmp_cuddStore(ADD *f, char *fname, char *ddname = NULL, char **varnames = NULL, int *auxids = NULL, int mode = DDDMP_MODE_TEXT, Dddmp_VarInfoType varinfo = DDDMP_VARIDS, FILE *fp = NULL);
+
+	//! Experimental. No description.
+	bool checkControllerDom(BDD *contrl, BDD *dom);
+
+	//! Experimental. Analyzes given system's BDD and system's cost ADD.
+	void diagnostics(BDD *S, ADD *costs, BDD *W = NULL, BDD *CNTR = NULL);
+
+	//! Experimental. Check if a system is deterministic or not
+	bool isDeterministic(BDD *S);
+
+	//! Experimental. Filters out (assigns infinity) to states that are invalid.
+	ADD filterCosts(BDD *S, ADD *costs, int mode = KEEP_VALID_STATES);
+};
+
+#endif /* SHORTESTPATH_H_ */
